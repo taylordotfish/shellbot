@@ -27,7 +27,8 @@ class Command():
 
     def run(self, timeout, term_timeout):
         def start_process():
-            self.process = Popen(self.command, stdin=PIPE, stdout=PIPE, stderr=PIPE, shell=True, universal_newlines=True)
+            self.process = Popen(["/bin/bash", "-c", self.command],
+                stdin=PIPE, stdout=PIPE, stderr=PIPE, universal_newlines=True)
             self.output, self.error = self.process.communicate()
 
         thread = threading.Thread(target=start_process)
