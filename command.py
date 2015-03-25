@@ -16,6 +16,8 @@
 # along with Shellbot.  If not, see <http://www.gnu.org/licenses/>.
 from subprocess import Popen, PIPE
 import threading
+import os
+import signal
 
 
 class Command():
@@ -28,7 +30,8 @@ class Command():
     def run(self, timeout, term_timeout):
         def start_process():
             self.process = Popen(["/bin/bash", "-c", self.command],
-                stdin=PIPE, stdout=PIPE, stderr=PIPE, universal_newlines=True)
+                stdin=PIPE, stdout=PIPE, stderr=PIPE, universal_newlines=True,
+                start_new_session=True)
             self.output, self.error = self.process.communicate()
 
         thread = threading.Thread(target=start_process)
@@ -36,9 +39,9 @@ class Command():
         thread.join(timeout)
 
         if thread.is_alive():
-            self.process.terminate()
+            os.killpg(self.process.pid, signal.SIGTERM)
             thread.join(term_timeout)
         if thread.is_alive():
-            self.process.kill()
+            os.killpg(self.process.pid, signal.SIGKILL)
             thread.join()
         return self.output.splitlines() + self.error.splitlines()
