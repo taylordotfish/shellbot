@@ -43,7 +43,8 @@ class Shellbot(IrcBot):
             return
         
         print("[{0}] {1}: {2}".format(target, nickname, message))
-        lines = Command(message[3:]).run(self.timeout, self.timeout / 2)
+        lines = [x for x in
+            Command(message[3:]).run(self.timeout, self.timeout / 2) if x]
         
         for line in lines[:self.max_lines]:
             self.send(target, line)
