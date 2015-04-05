@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (C) 2015 taylor.fish (https://github.com/taylordotfish)
+# Copyright (C) 2015 taylor.fish (https://github.com/taylordotfish) and nc Krantz-Fire (https://pineco.net/)
 # 
 # This file is part of Shellbot.
 # 
@@ -17,7 +17,7 @@
 # along with Shellbot.  If not, see <http://www.gnu.org/licenses/>.
 """
 Usage:
-  shellbot <host> <port> [-q] [-n nick] [-m max] [-t timeout] [-c channel]...
+  shellbot <host> <port> [-q] [-n nick] [-m max] [-t timeout] [-c channel] [-s starter]...
 
 Options:
   -q --queries  Run commands in private queries as well as channels.
@@ -25,6 +25,7 @@ Options:
   -m max        The maximum number of lines of output to send [default: 10].
   -t timeout    How many seconds to wait before killing processes [default: 4].
   -c channel    An IRC channel to join.
+  -s starter    The string to look for before commands (default: '!$'). A space will automatically be added.
 """
 from docopt import docopt
 from pyrcb import IrcBot
@@ -39,12 +40,12 @@ class Shellbot(IrcBot):
         self.allow_queries = allow_queries
     
     def on_message(self, message, nickname, target, is_query):
-        if not message.startswith("!$ ") or is_query and not self.allow_queries:
+        if not message.startswith(startstring +" ") or is_query and not self.allow_queries:
             return
         
         print("[{0}] {1}: {2}".format(target, nickname, message))
         lines = [x for x in
-            Command(message[3:]).run(self.timeout, self.timeout / 2) if x]
+            Command(message[len(startstring)+1:]).run(self.timeout, self.timeout / 2) if x]
         
         for line in lines[:self.max_lines]:
             self.send(target, line)
@@ -61,6 +62,11 @@ class Shellbot(IrcBot):
 
 def main():
     args = docopt(__doc__)
+    global startstring
+    if "-s" in args.keys() and len(args["-s"]) > 0:
+        startstring = str(args["-s"][0])
+    else:
+        startstring = "!$"
     bot = Shellbot(int(args["-m"]), float(args["-t"]), args["--queries"])
     bot.connect(args["<host>"], int(args["<port>"]))
     bot.register(args["-n"])
