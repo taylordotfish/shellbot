@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# Copyright (C) 2015 nickolas360 (https://github.com/nickolas360) and Nathan Krantz-Fire (https://github.com/zippynk)
+# Copyright (C) 2015 nickolas360 (https://github.com/nickolas360)
+# Copyright (C) 2015 Nathan Krantz-Fire (https://github.com/zippynk)
 # 
 # This file is part of Shellbot.
 # 
@@ -17,15 +18,16 @@
 # along with Shellbot.  If not, see <http://www.gnu.org/licenses/>.
 """
 Usage:
-  shellbot <host> <port> [-q] [-n nick] [-m max] [-t timeout] [-c channel] [-s starter]...
+  shellbot <host> <port> [-q] [-n nick] [-m max]
+           [-t timeout] [-p prefix] [-c channel]...
 
 Options:
   -q --queries  Run commands in private queries as well as channels.
   -n nick       The nickname to use [default: shellbot].
   -m max        The maximum number of lines of output to send [default: 10].
   -t timeout    How many seconds to wait before killing processes [default: 4].
+  -p prefix     The prefix which identifies commands to run [default: !$].
   -c channel    An IRC channel to join.
-  -s starter    The string to look for before commands (default: '!$'). A space will automatically be added.
 """
 from docopt import docopt
 from pyrcb import IrcBot
@@ -33,19 +35,22 @@ from command import Command
 
 
 class Shellbot(IrcBot):
-    def __init__(self, max_lines, timeout, allow_queries):
+    def __init__(self, max_lines, timeout, prefix, allow_queries):
         super(Shellbot, self).__init__()
         self.max_lines = max_lines
         self.timeout = timeout
+        self.prefix = prefix + " "
         self.allow_queries = allow_queries
     
     def on_message(self, message, nickname, target, is_query):
-        if not message.startswith(startstring +" ") or is_query and not self.allow_queries:
+        if not message.startswith(prefix):
+            return
+        if is_query and not self.allow_queries:
             return
         
         print("[{0}] {1}: {2}".format(target, nickname, message))
-        lines = [x for x in
-            Command(message[len(startstring)+1:]).run(self.timeout, self.timeout / 2) if x]
+        lines = [x for x in Command(message[len(startstring):])
+            .run(self.timeout, self.timeout / 2) if x]
         
         for line in lines[:self.max_lines]:
             self.send(target, line)
@@ -62,12 +67,9 @@ class Shellbot(IrcBot):
 
 def main():
     args = docopt(__doc__)
-    global startstring
-    if "-s" in args.keys() and len(args["-s"]) > 0:
-        startstring = str(args["-s"][0])
-    else:
-        startstring = "!$"
-    bot = Shellbot(int(args["-m"]), float(args["-t"]), args["--queries"])
+    bot = Shellbot(int(args["-m"]), float(args["-t"]),
+        args["-p"], args["--queries"])
+    
     bot.connect(args["<host>"], int(args["<port>"]))
     bot.register(args["-n"])
     for channel in args["-c"]:
