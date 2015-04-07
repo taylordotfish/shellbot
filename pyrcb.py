@@ -29,11 +29,14 @@ class IrcBot(object):
         self.is_registered = False
         self.nickname = None
         self.channels = []
+        self.alive = False
 
     def connect(self, hostname, port):
+        self._cleanup()
         self.hostname = hostname
         self.port = port
         self.socket.connect((hostname, port))
+        self.alive = True
 
     def register(self, nickname):
         self.nickname = nickname
@@ -55,16 +58,27 @@ class IrcBot(object):
             self.channels.remove(channel.lower())
 
     def quit(self):
-        self._writeline("QUIT")
-        self.socket.shutdown(socket.SHUT_RDWR)
+        try:
+            self._writeline("QUIT")
+            self.socket.shutdown(socket.SHUT_RDWR)
+        except socket.error:
+            pass
         self.socket.close()
+        self.alive = False
 
     def send(self, target, message):
         self._writeline("PRIVMSG {0} :{1}".format(target, message))
 
+    def send_raw(self, message):
+        self._writeline(message)
+
     def listen(self):
         while True:
-            line = self._readline()
+            try:
+                line = self._readline()
+            except socket.error:
+                self.quit()
+                return
             if line is None:
                 return
             self._handle(line)
@@ -75,6 +89,9 @@ class IrcBot(object):
             if callback:
                 callback()
         threading.Thread(target=target).start()
+
+    def is_alive(self):
+        return self.alive
 
     def on_join(self, nickname, channel):
         # To be overridden
@@ -88,12 +105,20 @@ class IrcBot(object):
         # To be overridden
         pass
 
+    def on_kick(self, nickname, channel, target, is_self):
+        # To be overridden
+        pass
+
     def on_message(self, message, nickname, target, is_query):
         # To be overridden
         pass
 
+    def on_other(self, message):
+        # To be overridden
+        pass
+
     def _handle(self, message):
-        split = message.split(" ", 3)
+        split = message.split(" ", 4)
         if len(split) < 2:
             return
         if split[0].upper() == "PING":
@@ -110,10 +135,15 @@ class IrcBot(object):
             self.on_part(nickname, split[2])
         elif command == "QUIT":
             self.on_quit(nickname)
+        elif command == "KICK":
+            is_self = split[3].lower() == self.nickname.lower()
+            self.on_kick(nickname, split[2], split[3], is_self)
         elif command == "PRIVMSG":
             is_query = split[2].lower() == self.nickname.lower()
             target = nickname if is_query else split[2]
-            self.on_message(split[3][1:], nickname, target, is_query)
+            self.on_message("".join(split[3:])[1:], nickname, target, is_query)
+        else:
+            self.on_other(message)
 
     def _readline(self):
         while "\r\n" not in self._buffer:
@@ -135,5 +165,5 @@ class IrcBot(object):
 
     def _cleanup(self):
         self._buffer = ""
-        self.registered = False
+        self.is_registered = False
         self.channels = []
