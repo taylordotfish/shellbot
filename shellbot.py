@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (C) 2015 nickolas360 (https://github.com/nickolas360)
 # Copyright (C) 2015 Nathan Krantz-Fire (https://github.com/zippynk)
+# Added a command-line option for the prefix.
 #
 # This file is part of Shellbot.
 #
