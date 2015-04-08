@@ -88,7 +88,9 @@ class IrcBot(object):
             self.listen()
             if callback:
                 callback()
-        threading.Thread(target=target).start()
+        t = threading.Thread(target=target)
+        t.daemon = True
+        t.start()
 
     def is_alive(self):
         return self.alive
@@ -141,7 +143,8 @@ class IrcBot(object):
         elif command == "PRIVMSG":
             is_query = split[2].lower() == self.nickname.lower()
             target = nickname if is_query else split[2]
-            self.on_message("".join(split[3:])[1:], nickname, target, is_query)
+            msg = " ".join(split[3:])[1:]
+            self.on_message(msg, nickname, target, is_query)
         else:
             self.on_other(message)
 
