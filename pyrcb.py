@@ -14,6 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from __future__ import print_function
+import re
 import socket
 import ssl
 import threading
@@ -132,39 +133,40 @@ class IrcBot(object):
         # To be overridden
         pass
 
-    def on_other(self, message):
+    def on_other(self, nickname, command, args, trailing):
         # To be overridden
         pass
 
     def _handle(self, message):
-        split = message.split(" ", 4)
-        if len(split) < 2:
-            return
-        if split[0].upper() == "PING":
-            self._writeline("PONG {0}".format(split[1]))
-            return
+        match = re.match("(?::([^!@ ]+)[^ ]* )?([^ ]+)"
+                         "((?: [^: ][^ ]*){0,14})(?: :?(.+))?",
+                         message)
 
-        nick = split[0].split("!")[0].split("@")[0][1:]
-        cmd = split[1].upper()
-        if cmd == "MODE":
+        nick = match.group(1)
+        cmd = match.group(2)
+        args = (match.group(3) or "").split()
+        trailing = match.group(4)
+
+        if cmd == "PING":
+            self._writeline("PONG " + args[0])
+        elif cmd == "MODE":
             self.is_registered = True
         elif cmd == "JOIN":
-            self.on_join(nick, split[2])
+            self.on_join(nick, args[0])
         elif cmd == "PART":
-            self.on_part(nick, split[2])
+            self.on_part(nick, args[0])
         elif cmd == "QUIT":
             self.on_quit(nick)
         elif cmd == "KICK":
-            is_self = split[3].lower() == self.nickname.lower()
-            self.on_kick(nick, split[2], split[3], is_self)
+            is_self = args[1].lower() == self.nickname.lower()
+            self.on_kick(nick, args[0], args[1], is_self)
         elif cmd == "PRIVMSG" or cmd == "NOTICE":
-            msg = " ".join(split[3:])[1:]
-            is_query = split[2].lower() == self.nickname.lower()
-            target = nick if is_query else split[2]
+            is_query = args[0].lower() == self.nickname.lower()
+            target = nick if is_query else args[0]
             event = self.on_message if cmd == "PRIVMSG" else self.on_notice
-            event(msg, nick, target, is_query)
+            event(trailing, nick, target, is_query)
         else:
-            self.on_other(message)
+            self.on_other(nick, cmd, args, trailing)
 
     def _readline(self):
         while "\r\n" not in self._buffer:
