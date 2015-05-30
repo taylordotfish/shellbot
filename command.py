@@ -29,7 +29,8 @@ class Command():
 
     def run(self, timeout, term_timeout):
         def start_process():
-            self.process = Popen(["/bin/bash", "-c", self.command],
+            self.process = Popen(
+                ["/bin/bash", "-c", self.command],
                 stdin=PIPE, stdout=PIPE, stderr=PIPE, universal_newlines=True,
                 start_new_session=True)
             self.output, self.error = self.process.communicate()

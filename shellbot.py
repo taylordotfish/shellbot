@@ -51,7 +51,7 @@ class Shellbot(IrcBot):
 
         print("[{0}] {1}: {2}".format(target, nickname, message))
         lines = [x for x in Command(message[len(self.prefix):])
-            .run(self.timeout, self.timeout / 2) if x]
+                 .run(self.timeout, self.timeout / 2) if x]
 
         for line in lines[:self.max_lines]:
             self.send(target, line)
@@ -69,7 +69,7 @@ class Shellbot(IrcBot):
 def main():
     args = docopt(__doc__)
     bot = Shellbot(int(args["-m"]), float(args["-t"]),
-        args["-p"], args["--queries"])
+                   args["-p"], args["--queries"])
 
     bot.connect(args["<host>"], int(args["<port>"]))
     bot.register(args["-n"])
