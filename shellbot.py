@@ -30,9 +30,10 @@ Options:
   -p prefix     The prefix which identifies commands to run [default: !$].
   -c channel    An IRC channel to join.
 """
-from docopt import docopt
 from pyrcb import IrcBot
 from command import Command
+from docopt import docopt
+import threading
 
 
 class Shellbot(IrcBot):
@@ -48,11 +49,13 @@ class Shellbot(IrcBot):
             return
         if is_query and not self.allow_queries:
             return
-
         print("[{0}] {1}: {2}".format(target, nickname, message))
-        lines = [x for x in Command(message[len(self.prefix):])
-                 .run(self.timeout, self.timeout / 2) if x]
+        threading.Thread(target=self.run_command,
+                         args=(message[len(self.prefix):], target)).start()
 
+    def run_command(self, command, target):
+        lines = [x for x in Command(command).run(
+            self.timeout, self.timeout / 2) if x]
         for line in lines[:self.max_lines]:
             self.send(target, line)
             print(">>> " + line)
@@ -76,7 +79,6 @@ def main():
     for channel in args["-c"]:
         bot.join(channel)
     bot.listen()
-
 
 if __name__ == "__main__":
     main()
