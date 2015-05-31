@@ -19,20 +19,23 @@
 # along with Shellbot.  If not, see <http://www.gnu.org/licenses/>.
 """
 Usage:
-  shellbot <host> <port> [-q] [-n nick] [-m max]
+  shellbot <host> <port> [-q] [-i] [-n nick] [-m max]
            [-t timeout] [-p prefix] [-c channel]...
 
 Options:
-  -q --queries  Run commands in private queries as well as channels.
-  -n nick       The nickname to use [default: shellbot].
-  -m max        The maximum number of lines of output to send [default: 10].
-  -t timeout    How many seconds to wait before killing processes [default: 4].
-  -p prefix     The prefix which identifies commands to run [default: !$].
-  -c channel    An IRC channel to join.
+  -q --queries   Run commands in private queries as well as channels.
+  -i --identify  Identify with NickServ. Accepts a password through stdin.
+  -n nick        The nickname to use [default: shellbot].
+  -m max         The maximum number of lines of output to send [default: 10].
+  -t timeout     How many seconds to wait before killing processes
+                 [default: 4].
+  -p prefix      The prefix which identifies commands to run [default: !$].
+  -c channel     An IRC channel to join.
 """
 from pyrcb import IrcBot
 from command import Command
 from docopt import docopt
+import sys
 import threading
 
 
@@ -76,6 +79,11 @@ def main():
 
     bot.connect(args["<host>"], int(args["<port>"]))
     bot.register(args["-n"])
+
+    if args["--identify"]:
+        print("Password: ", end="", file=sys.stderr)
+        bot.send("NickServ", "identify {0}".format(input()))
+
     for channel in args["-c"]:
         bot.join(channel)
     bot.listen()
