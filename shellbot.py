@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 # Copyright (C) 2015 taylor.fish (https://github.com/taylordotfish)
 # Copyright (C) 2015 nc Krantz-Fire (https://pineco.net/)
-# Added a command-line option for the prefix.
+# Added --prefix option.
 #
-# This file is part of Shellbot.
+# This file is part of shellbot.
 #
-# Shellbot is free software: you can redistribute it and/or modify
+# shellbot is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# Shellbot is distributed in the hope that it will be useful,
+# shellbot is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with Shellbot.  If not, see <http://www.gnu.org/licenses/>.
+# along with shellbot.  If not, see <http://www.gnu.org/licenses/>.
 """
 Usage:
   shellbot <host> <port> [-q] [-i] [-n nick] [-m max]
