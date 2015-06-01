@@ -52,7 +52,7 @@ class Shellbot(IrcBot):
             return
         if is_query and not self.allow_queries:
             return
-        print("[{0}] {1}: {2}".format(target, nickname, message))
+        print("[{0}] <{1}> {2}".format(target, nickname, message))
         threading.Thread(target=self.run_command,
                          args=(message[len(self.prefix):], target)).start()
 
