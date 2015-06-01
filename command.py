@@ -14,35 +14,27 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with shellbot.  If not, see <http://www.gnu.org/licenses/>.
-from subprocess import Popen, PIPE
-import threading
+
+from subprocess import Popen, PIPE, TimeoutExpired
 import os
 import signal
+import threading
 
 
-class Command():
-    def __init__(self, command):
-        self.command = command
-        self.process = None
-        self.output = ""
-        self.error = ""
+def run_shell(command, timeout, term_timeout):
+    process = Popen(
+        ["/bin/bash", "-c", command],
+        stdin=PIPE, stdout=PIPE, stderr=PIPE,
+        universal_newlines=True, preexec_fn=os.setpgrp)
 
-    def run(self, timeout, term_timeout):
-        def start_process():
-            self.process = Popen(
-                ["/bin/bash", "-c", self.command],
-                stdin=PIPE, stdout=PIPE, stderr=PIPE, universal_newlines=True,
-                start_new_session=True)
-            self.output, self.error = self.process.communicate()
+    def run_timeout(timeout, signal):
+        try:
+            output, error = process.communicate(timeout=timeout)
+            return output.splitlines() + error.splitlines()
+        except TimeoutExpired:
+            os.killpg(process.pid, signal)
 
-        thread = threading.Thread(target=start_process)
-        thread.start()
-        thread.join(timeout)
-
-        if thread.is_alive():
-            os.killpg(self.process.pid, signal.SIGTERM)
-            thread.join(term_timeout)
-        if thread.is_alive():
-            os.killpg(self.process.pid, signal.SIGKILL)
-            thread.join()
-        return self.output.splitlines() + self.error.splitlines()
+    result = run_timeout(timeout, signal.SIGTERM)
+    if result is None:
+        result = run_timeout(term_timeout, signal.SIGKILL)
+    return result

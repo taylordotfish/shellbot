@@ -33,8 +33,9 @@ Options:
   -c channel     An IRC channel to join.
 """
 from pyrcb import IrcBot
-from command import Command
+from command import run_shell
 from docopt import docopt
+import re
 import sys
 import threading
 
@@ -57,8 +58,9 @@ class Shellbot(IrcBot):
                          args=(message[len(self.prefix):], target)).start()
 
     def run_command(self, command, target):
-        lines = [x for x in Command(command).run(
-            self.timeout, self.timeout / 2) if x]
+        lines = [re.sub(r"\x1b.*?[a-zA-Z]", "", l) for l in
+                 run_shell(command, self.timeout, self.timeout / 2) if l]
+
         for line in lines[:self.max_lines]:
             self.send(target, line)
             print(">>> " + line)
