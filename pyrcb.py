@@ -20,7 +20,7 @@ import socket
 import ssl
 import threading
 
-__version__ = "1.3.1"
+__version__ = "1.4.0"
 
 
 class IrcBot(object):
@@ -51,6 +51,9 @@ class IrcBot(object):
         self.socket.connect((hostname, port))
         self.alive = True
 
+    def password(self, password):
+        self._writeline("PASS :{0}".format(password))
+
     def register(self, nickname):
         self.nickname = nickname
         self._writeline("USER {0} 8 * :{0}".format(nickname))
@@ -64,7 +67,6 @@ class IrcBot(object):
             self._handle(line)
 
     def join(self, channel):
-        self.channels.append(channel.lower())
         self._writeline("JOIN {0}".format(channel))
 
     def part(self, channel, message=None):
@@ -158,11 +160,15 @@ class IrcBot(object):
                 target(*args)
 
         nick, cmd, args = self._parse(message)
+        is_self = nick.lower() == self.nickname.lower()
+
         if cmd == "PING":
             self._writeline("PONG :{0}".format(args[0]))
         elif cmd == "MODE":
             self.is_registered = True
         elif cmd == "JOIN":
+            if is_self:
+                self.channels.append(args[0])
             async(self.on_join, nick, args[0])
         elif cmd == "PART":
             async(self.on_part, nick, args[0], args[1])
@@ -172,7 +178,6 @@ class IrcBot(object):
             is_self = args[1].lower() == self.nickname.lower()
             async(self.on_kick, nick, args[0], args[1], is_self)
         elif cmd == "NICK":
-            is_self = nick == self.nickname.lower()
             if is_self:
                 self.nickname = args[0]
             async(self.on_nick, nick, args[0], is_self)
