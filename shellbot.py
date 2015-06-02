@@ -78,13 +78,12 @@ def main():
     args = docopt(__doc__)
     bot = Shellbot(int(args["-m"]), float(args["-t"]),
                    args["-p"], args["--queries"])
-
     bot.connect(args["<host>"], int(args["<port>"]))
-    bot.register(args["-n"])
 
     if args["--identify"]:
         print("Password: ", end="", file=sys.stderr)
-        bot.send("NickServ", "identify {0}".format(input()))
+        bot.password(input())
+    bot.register(args["-n"])
 
     for channel in args["-c"]:
         bot.join(channel)
