@@ -20,7 +20,7 @@ import socket
 import ssl
 import threading
 
-__version__ = "1.4.0"
+__version__ = "1.4.1"
 
 
 class IrcBot(object):
@@ -160,7 +160,7 @@ class IrcBot(object):
                 target(*args)
 
         nick, cmd, args = self._parse(message)
-        is_self = nick.lower() == self.nickname.lower()
+        is_self = (nick or "").lower() == self.nickname.lower()
 
         if cmd == "PING":
             self._writeline("PONG :{0}".format(args[0]))
