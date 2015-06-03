@@ -34,3 +34,7 @@ as the second user with `sudo -u` without a password. This can be done by
 adding `<first_user> ALL=<second_user> NOPASSWD:ALL` to your `sudoers` file.
 
 *Disclaimer: If not done right, this is potentially very dangerous.*
+
+*Disclaimer: Even when done right, this is a minefield filled with zombies and
+dinosaurs wielding laser guns. Proceed with caution, and consider putting 911
+on speed dial.*
