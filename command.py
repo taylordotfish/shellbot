@@ -17,25 +17,46 @@
 
 from subprocess import call, Popen, PIPE, TimeoutExpired
 import os
+import pwd
 import signal
 import threading
 
 
 def run_shell(command, sys_user, timeout, term_timeout):
-    sudo_wrapper = ["/usr/bin/sudo", "-Hiu", sys_user] if sys_user else []
+    if sys_user:
+        info = pwd.getpwnam(sys_user)
+        preexec = setid(info.pw_uid, info.pw_gid)
+    else:
+        assert os.geteuid() != 0
+        assert os.getegid() != 0
+        preexec = os.setpgrp
+
     process = Popen(
-        sudo_wrapper + ["/bin/bash", "-c", command],
+        ["/bin/bash", "-c", command],
         stdin=PIPE, stdout=PIPE, stderr=PIPE,
-        universal_newlines=True, preexec_fn=os.setpgrp)
+        universal_newlines=True, preexec_fn=preexec)
 
     def run_timeout(timeout, signal):
         try:
             output, error = process.communicate(timeout=timeout)
             return output.splitlines() + error.splitlines()
         except TimeoutExpired:
-            call(sudo_wrapper + ["/bin/kill", "-" + str(signal), "-" + str(process.pid)])
+            print(process.pid)
+            os.killpg(process.pid, signal)
 
     result = run_timeout(timeout, signal.SIGTERM)
-    if result is None:
-        result = run_timeout(term_timeout, signal.SIGKILL)
+    for i in range(2):
+        if result is None:
+            result = run_timeout(term_timeout, signal.SIGKILL)
+    return result
+
+
+def setid(uid, gid):
+    assert uid != 0
+    assert gid != 0
+
+    def result():
+        os.setgid(uid)
+        os.setuid(gid)
+        os.setpgrp()
     return result

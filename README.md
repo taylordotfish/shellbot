@@ -25,12 +25,7 @@ limited permissions and run `shellbot` as that user. Anything that user can
 run, `shellbot` can run as well.
 
 By default, IRC users can kill `shellbot` by running `!$ kill <shellbot_proc>`.
-To prevent this, create a second user with limited permissions, and when
-running `shellbot` as the first user with limited permissions, add the option
-`-u <second_limited_user>`.
+To prevent this, start `shellbot` as `root` and add the option `-u <limited_user>`.
 
-Make sure the first user with limited permissions is able to execute commands
-as the second user with `sudo -u` without a password. This can be done by
-adding `<first_user> ALL=<second_user> NOPASSWD:ALL` to your `sudoers` file.
-
-*Disclaimer: If not done right, this is potentially very dangerous.*
+*Disclaimer: If not done properly, this can be very dangerous! In addition to
+the steps above, you should set process limits to avoid fork bombs.*
