@@ -63,7 +63,8 @@ class Shellbot(IrcBot):
 
     def run_command(self, command, target):
         lines = [re.sub(r"\x1b.*?[a-zA-Z]", "", l) for l in run_shell(
-            command, self.sys_user, self.timeout, self.timeout / 2) if l]
+            command, self.sys_user, self.timeout, self.timeout / 2)]
+        lines = [l for l in lines if l]
 
         for line in lines[:self.max_lines]:
             self.send(target, line)
