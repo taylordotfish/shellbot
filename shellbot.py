@@ -23,9 +23,8 @@ Usage:
            [-t timeout] [-p prefix] [-c channel]...
 
 Options:
-  -u user        Run commands as the specified user. The owner of this process
-                 must be able to run commands as the user with sudo -u with no
-                 password. If not present, this defaults to the process owner.
+  -u user        Run commands as the specified user. Prevents the shellbot
+                 process from being killed. Must be run as root.
   -q --queries   Run commands in private queries as well as channels.
   -i --identify  Identify with NickServ. Accepts a password through stdin.
   -n nick        The nickname to use [default: shellbot].
@@ -38,6 +37,7 @@ Options:
 from pyrcb import IrcBot
 from command import run_shell
 from docopt import docopt
+import os
 import re
 import sys
 import threading
@@ -81,6 +81,13 @@ class Shellbot(IrcBot):
 
 def main():
     args = docopt(__doc__)
+    if args["-u"] and os.geteuid() != 0:
+        print('Must be run as root when "-u" is specified.')
+        return
+    if not args["-u"] and os.geteuid() == 0:
+        print('Cannot be run as root unless "-u" is specified.')
+        return
+
     bot = Shellbot(int(args["-m"]), float(args["-t"]),
                    args["-p"], args["--queries"], args["-u"])
     bot.connect(args["<host>"], int(args["<port>"]))
