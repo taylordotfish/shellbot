@@ -21,9 +21,10 @@ import signal
 import threading
 
 
-def run_shell(command, timeout, term_timeout):
+def run_shell(command, sys_user, timeout, term_timeout):
+    sudo_wrapper = ["/usr/bin/sudo", "-Hiu", sys_user] if sys_user else []
     process = Popen(
-        ["/bin/bash", "-c", command],
+        sudo_wrapper + ["/bin/bash", "-c", command],
         stdin=PIPE, stdout=PIPE, stderr=PIPE,
         universal_newlines=True, preexec_fn=os.setpgrp)
 
