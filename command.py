@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with shellbot.  If not, see <http://www.gnu.org/licenses/>.
 
-from subprocess import Popen, PIPE, TimeoutExpired
+from subprocess import call, Popen, PIPE, TimeoutExpired
 import os
 import signal
 import threading
@@ -33,7 +33,7 @@ def run_shell(command, sys_user, timeout, term_timeout):
             output, error = process.communicate(timeout=timeout)
             return output.splitlines() + error.splitlines()
         except TimeoutExpired:
-            os.killpg(process.pid, signal)
+            call(sudo_wrapper + ["/bin/kill", "-" + str(signal), "-" + str(process.pid)])
 
     result = run_timeout(timeout, signal.SIGTERM)
     if result is None:
