@@ -19,12 +19,13 @@
 # along with shellbot.  If not, see <http://www.gnu.org/licenses/>.
 """
 Usage:
-  shellbot <host> <port> [-u user] [-q] [-i] [-n nick] [-m max]
-           [-t timeout] [-p prefix] [-c channel]...
+  shellbot <host> <port> [-u user] [-d directory] [-q] [-i]
+           [-n nick] [-m max] [-t timeout] [-p prefix] [-c channel]...
 
 Options:
   -u user        Run commands as the specified user. Prevents the shellbot
                  process from being killed. Must be run as root.
+  -d directory   The current working directory for all commands.
   -q --queries   Run commands in private queries as well as channels.
   -i --identify  Identify with NickServ. Accepts a password through stdin.
   -n nick        The nickname to use [default: shellbot].
@@ -44,13 +45,14 @@ import threading
 
 
 class Shellbot(IrcBot):
-    def __init__(self, max_lines, timeout, prefix, queries, user):
+    def __init__(self, max_lines, timeout, prefix, queries, user, cwd):
         super(Shellbot, self).__init__()
         self.max_lines = max_lines
         self.timeout = timeout
         self.prefix = prefix + " "
         self.allow_queries = queries
-        self.sys_user = user
+        self.cmd_user = user
+        self.cwd = cwd
 
     def on_message(self, message, nickname, target, is_query):
         if not message.startswith(self.prefix):
@@ -63,7 +65,7 @@ class Shellbot(IrcBot):
 
     def run_command(self, command, target):
         lines = [re.sub(r"\x1b.*?[a-zA-Z]", "", l) for l in run_shell(
-            command, self.sys_user, self.timeout, self.timeout / 2)]
+            command, self.cmd_user, self.cwd, self.timeout, self.timeout / 2)]
         lines = [l for l in lines if l]
 
         for line in lines[:self.max_lines]:
@@ -88,8 +90,8 @@ def main():
         print('Cannot be run as root unless "-u" is specified.')
         return
 
-    bot = Shellbot(int(args["-m"]), float(args["-t"]),
-                   args["-p"], args["--queries"], args["-u"])
+    bot = Shellbot(int(args["-m"]), float(args["-t"]), args["-p"],
+                   args["--queries"], args["-u"], args["-d"])
     bot.connect(args["<host>"], int(args["<port>"]))
 
     if args["--identify"]:

@@ -22,9 +22,9 @@ import signal
 import threading
 
 
-def run_shell(command, sys_user, timeout, term_timeout):
-    if sys_user:
-        info = pwd.getpwnam(sys_user)
+def run_shell(command, user, cwd, timeout, term_timeout):
+    if user:
+        info = pwd.getpwnam(user)
         preexec = setid(info.pw_uid, info.pw_gid)
     else:
         assert os.geteuid() != 0
@@ -33,7 +33,7 @@ def run_shell(command, sys_user, timeout, term_timeout):
 
     process = Popen(
         ["/bin/bash", "-c", command],
-        stdin=PIPE, stdout=PIPE, stderr=PIPE,
+        stdin=PIPE, stdout=PIPE, stderr=PIPE, cwd=cwd,
         universal_newlines=True, preexec_fn=preexec)
 
     def run_timeout(timeout, signal):
