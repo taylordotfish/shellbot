@@ -70,7 +70,8 @@ class Shellbot(IrcBot):
             for line in help_lines:
                 self.send(nickname, line)
         else:
-            self.send(nick, '"/msg {0} help" for help'.format(self.nickname))
+            self.send(nickname, '"/msg {0} help" for help'
+                                .format(self.nickname))
 
     def on_message(self, message, nickname, target, is_query):
         if not message.startswith(self.prefix):
