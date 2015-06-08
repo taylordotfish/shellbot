@@ -17,6 +17,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with shellbot.  If not, see <http://www.gnu.org/licenses/>.
+#
+# See EXCEPTIONS for additional permissions.
 """
 Usage:
   shellbot <host> <port> [-u user] [-d directory] [-q] [-i]
@@ -43,6 +45,13 @@ import re
 import sys
 import threading
 
+# If modified, replace the source URL with one to the modified version.
+help_message = """\
+Source: https://github.com/taylordotfish/shellbot (AGPLv3 or later)
+Use in private queries is {0}.
+To run a command, send "!$ [command]".
+"""
+
 
 class Shellbot(IrcBot):
     def __init__(self, max_lines, timeout, prefix, queries, user, cwd):
@@ -54,10 +63,22 @@ class Shellbot(IrcBot):
         self.cmd_user = user
         self.cwd = cwd
 
+    def on_query(self, message, nickname):
+        if message.lower() == "help":
+            help_lines = help_message.format(
+                ["disabled", "enabled"][self.allow_queries]).splitlines()
+            for line in help_lines:
+                self.send(nickname, line)
+        else:
+            self.send(nick, '"/msg {0} help" for help'.format(self.nickname))
+
     def on_message(self, message, nickname, target, is_query):
         if not message.startswith(self.prefix):
+            if is_query:
+                self.on_query(message, nickname)
             return
         if is_query and not self.allow_queries:
+            self.send(nickname, "Use in private queries is disabled.")
             return
         print("[{0}] <{1}> {2}".format(target, nickname, message))
         threading.Thread(target=self.run_command,

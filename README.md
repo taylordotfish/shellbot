@@ -14,7 +14,9 @@ that runs shell commands. For example,
 ```
 
 To run a command with `shellbot`, prefix your command with `!$` (and a space).
-Run `shellbot --help` for information on how to run `shellbot`.
+`/msg shellbot help` for more information.
+
+See `shellbot --help` for information on how to run it.
 
 `shellbot` has been tested with Python 3.4 and Debian GNU/Linux, though it
 should work with Python 3.3 or higher on most Unix-like operating systems.
