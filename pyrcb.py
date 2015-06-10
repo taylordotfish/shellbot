@@ -20,7 +20,7 @@ import socket
 import ssl
 import threading
 
-__version__ = "1.4.1"
+__version__ = "1.4.2"
 
 
 class IrcBot(object):
@@ -171,9 +171,9 @@ class IrcBot(object):
                 self.channels.append(args[0])
             async(self.on_join, nick, args[0])
         elif cmd == "PART":
-            async(self.on_part, nick, args[0], args[1])
+            async(self.on_part, nick, args[0], (args[1:] or [""])[0])
         elif cmd == "QUIT":
-            async(self.on_quit, nick, args[0])
+            async(self.on_quit, nick, (args or [""])[0])
         elif cmd == "KICK":
             is_self = args[1].lower() == self.nickname.lower()
             async(self.on_kick, nick, args[0], args[1], is_self)
