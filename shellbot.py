@@ -22,7 +22,7 @@
 """
 Usage:
   shellbot <host> <port> [-u user] [-d directory] [-q] [-i]
-           [-n nick] [-m max] [-t timeout] [-p prefix] [-c channel]...
+           [-n nick] [-m max] [-t timeout] [-p prefix] [-c channel] [--EVIL]...
 
 Options:
   -u user        Run commands as the specified user. Prevents the shellbot
@@ -47,10 +47,10 @@ import sys
 import threading
 
 # If modified, replace the source URL with one to the modified version.
-help_message = """\
-Source: https://github.com/nickolas360/shellbot (AGPLv3 or later)
+help_message = """
+Source: https://github.com/zippynk/shellbot/patch-1/ (AGPLv3 or later)
 Use in private queries is {0}.
-To run a command, send "!$ [command]".
+To run a command, send "{1}[command]".
 """
 
 
@@ -68,13 +68,13 @@ class Shellbot(IrcBot):
     def on_query(self, message, nickname):
         if message.lower() == "help":
             help_lines = help_message.format(
-                ["disabled", "enabled"][self.allow_queries]).splitlines()
+                ["disabled", "enabled"][self.allow_queries],self.prefix).splitlines()
             for line in help_lines:
                 self.send(nickname, line.upper() if self.EVIL else line)
         else:
             self.send(nickname, '"/msg {0} help" for help'
                                 .format(self.nickname).upper() if self.EVIL else '"/msg {0} help" for help'
-                                .format(self.nickname).upper())
+                                .format(self.nickname))
 
     def on_message(self, message, nickname, target, is_query):
         if not message.startswith(self.prefix):
