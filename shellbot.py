@@ -36,6 +36,7 @@ Options:
                  [default: 4].
   -p prefix      The prefix which identifies commands to run [default: !$].
   -c channel     An IRC channel to join.
+  --EVIL         SENDS ALL MESSAGES IN ALL CAPS
 """
 from pyrcb import IrcBot
 from command import run_shell
@@ -54,7 +55,7 @@ To run a command, send "!$ [command]".
 
 
 class Shellbot(IrcBot):
-    def __init__(self, max_lines, timeout, prefix, queries, user, cwd):
+    def __init__(self, max_lines, timeout, prefix, queries, user, cwd, EVIL):
         super(Shellbot, self).__init__()
         self.max_lines = max_lines
         self.timeout = timeout
@@ -62,16 +63,18 @@ class Shellbot(IrcBot):
         self.allow_queries = queries
         self.cmd_user = user
         self.cwd = cwd
+        self.EVIL = EVIL
 
     def on_query(self, message, nickname):
         if message.lower() == "help":
             help_lines = help_message.format(
                 ["disabled", "enabled"][self.allow_queries]).splitlines()
             for line in help_lines:
-                self.send(nickname, line)
+                self.send(nickname, line.upper() if self.EVIL else line)
         else:
             self.send(nickname, '"/msg {0} help" for help'
-                                .format(self.nickname))
+                                .format(self.nickname).upper() if self.EVIL else '"/msg {0} help" for help'
+                                .format(self.nickname).upper())
 
     def on_message(self, message, nickname, target, is_query):
         if not message.startswith(self.prefix):
@@ -79,7 +82,7 @@ class Shellbot(IrcBot):
                 self.on_query(message, nickname)
             return
         if is_query and not self.allow_queries:
-            self.send(nickname, "Use in private queries is disabled.")
+            self.send(nickname, "Use in private queries is disabled.".upper() if EVIL else "Use in private queries is disabled.")
             return
         print("[{0}] <{1}> {2}".format(target, nickname, message))
         threading.Thread(target=self.run_command,
@@ -91,15 +94,15 @@ class Shellbot(IrcBot):
         lines = [l for l in lines if l]
 
         for line in lines[:self.max_lines]:
-            self.send(target, line)
+            self.send(target, line.upper() if self.EVIL else line)
             print(">>> " + line)
         if len(lines) > self.max_lines:
             message = "...output trimmed to {0} lines".format(self.max_lines)
-            self.send(target, message)
+            self.send(target, message.upper() if self.EVIL else message)
             print(">>> " + message)
         if not lines:
             message = "Command produced no output."
-            self.send(target, message)
+            self.send(target, message.upper() if self.EVIL else message)
             print(">>> " + message)
 
 
@@ -113,7 +116,7 @@ def main():
         return
 
     bot = Shellbot(int(args["-m"]), float(args["-t"]), args["-p"],
-                   args["--queries"], args["-u"], args["-d"])
+                   args["--queries"], args["-u"], args["-d"],args["--EVIL"])
     bot.connect(args["<host>"], int(args["<port>"]))
 
     if args["--identify"]:
