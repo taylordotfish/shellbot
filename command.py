@@ -17,11 +17,10 @@
 #
 # See EXCEPTIONS for additional permissions.
 
-from subprocess import call, Popen, PIPE, TimeoutExpired
+from subprocess import Popen, PIPE, TimeoutExpired
 import os
 import pwd
 import signal
-import threading
 
 env = {"PATH": "/bin:/usr/bin:/usr/games:/usr/local/bin:/usr/local/games"}
 
@@ -37,13 +36,14 @@ def run_shell(command, user, cwd, timeout, term_timeout):
 
     process = Popen(
         ["/bin/bash", "-c", command],
-        stdin=PIPE, stdout=PIPE, stderr=PIPE, cwd=cwd, env=env,
-        universal_newlines=True, preexec_fn=preexec)
+        stdin=PIPE, stdout=PIPE, stderr=PIPE,
+        cwd=cwd, env=env, preexec_fn=preexec)
 
     def run_timeout(timeout, signal):
         try:
             output, error = process.communicate(timeout=timeout)
-            return output.splitlines() + error.splitlines()
+            return (output.decode("utf8", "ignore").splitlines() +
+                    error.decode("utf8", "ignore").splitlines())
         except TimeoutExpired:
             os.killpg(process.pid, signal)
 

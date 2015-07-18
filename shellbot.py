@@ -40,6 +40,7 @@ Options:
 from pyrcb import IrcBot
 from command import run_shell
 from docopt import docopt
+from datetime import datetime
 import os
 import re
 import sys
@@ -81,11 +82,13 @@ class Shellbot(IrcBot):
         if is_query and not self.allow_queries:
             self.send(nickname, "Use in private queries is disabled.")
             return
-        print("[{0}] <{1}> {2}".format(target, nickname, message))
+        print("[{3}] [{0}] <{1}> {2}".format(
+            target, nickname, message, datetime.now().replace(microsecond=0)))
         threading.Thread(target=self.run_command,
                          args=(message[len(self.prefix):], target)).start()
 
     def run_command(self, command, target):
+        # Strip ANSI escape sequences.
         lines = [re.sub(r"\x1b.*?[a-zA-Z]", "", l) for l in run_shell(
             command, self.cmd_user, self.cwd, self.timeout, self.timeout / 2)]
         lines = [l for l in lines if l]
