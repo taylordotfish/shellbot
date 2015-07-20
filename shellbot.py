@@ -123,6 +123,7 @@ def main():
     if args["--identify"]:
         print("Password: ", end="", file=sys.stderr)
         bot.password(input())
+        print("Received password.")
     bot.register(args["-n"])
 
     for channel in args["-c"]:
