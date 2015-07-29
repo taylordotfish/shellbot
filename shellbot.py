@@ -22,8 +22,10 @@
 """
 Usage:
   shellbot <host> <port> [options] [-c CHANNEL]...
+  shellbot -h | --help
 
 Options:
+  -h --help      Display this help message.
   -q --queries   Run commands in private queries as well as channels.
   -i --identify  Identify with NickServ. Accepts a password through stdin.
   -n NICKNAME    The nickname to use [default: shellbot].
