@@ -21,21 +21,20 @@
 # See EXCEPTIONS for additional permissions.
 """
 Usage:
-  shellbot <host> <port> [-u user] [-d directory] [-q] [-i]
-           [-n nick] [-m max] [-t timeout] [-p prefix] [-c channel]...
+  shellbot <host> <port> [options] [-c CHANNEL]...
 
 Options:
-  -u <user>       Run commands as the specified user. Prevents the shellbot
-                  process from being killed. Must be run as root.
-  -d <directory>  The current working directory for all commands.
-  -q --queries    Run commands in private queries as well as channels.
-  -i --identify   Identify with NickServ. Accepts a password through stdin.
-  -n <nick>       The nickname to use [default: shellbot].
-  -m <max>        The maximum number of lines of output to send [default: 10].
-  -t <timeout>    How many seconds to wait before killing processes
-                  [default: 4].
-  -p <prefix>     The prefix which identifies commands to run [default: !$].
-  -c <channel>    An IRC channel to join.
+  -q --queries   Run commands in private queries as well as channels.
+  -i --identify  Identify with NickServ. Accepts a password through stdin.
+  -n NICKNAME    The nickname to use [default: shellbot].
+  -c CHANNEL     An IRC channel to join.
+  -m MAX-LINES   The maximum number of lines of output to send [default: 10].
+  -t TIMEOUT     How many seconds to wait before killing processes
+  -p PREFIX      The prefix which identifies commands to run [default: !$].
+  -u USER        Run commands as the specified user. Prevents the shellbot
+                 process from being killed. Must be run as root.
+  -d DIRECTORY   The current working directory for all commands.
+                 [default: 4].
 """
 from pyrcb import IrcBot
 from command import run_shell
