@@ -27,7 +27,11 @@ Usage:
 Options:
   -h --help       Display this help message.
   -q --queries    Run commands in private queries as well as channels.
-  -i --identify   Identify with NickServ. Accepts a password through stdin.
+  -i --password   Set a connection password. Can be used to identify with
+                  NickServ. Calls getpass() if stdin is a TTY and reads from
+                  stdin otherwise.
+  --use-getpass   Force password to be read with getpass(), even if stdin is
+                  not a TTY.
   -n <nickname>   The nickname to use [default: shellbot].
   -c <channel>    An IRC channel to join.
   -m <max-lines>  The maximum number of lines of output to send [default: 10].
@@ -38,10 +42,11 @@ Options:
   -d <directory>  The current working directory for all commands.
                   [default: 4].
 """
-from pyrcb import IrcBot
+from pyrcb import IRCBot
 from command import run_shell
 from docopt import docopt
 from datetime import datetime
+from getpass import getpass
 import os
 import re
 import sys
@@ -55,7 +60,7 @@ To run a command, send "{1} [command]".
 """
 
 
-class Shellbot(IrcBot):
+class Shellbot(IRCBot):
     def __init__(self, max_lines, timeout, prefix, queries, user, cwd):
         super(Shellbot, self).__init__()
         self.max_lines = max_lines
@@ -76,7 +81,7 @@ class Shellbot(IrcBot):
             self.send(nickname, '"/msg {0} help" for help'
                                 .format(self.nickname))
 
-    def on_message(self, message, nickname, target, is_query):
+    def on_message(self, message, nickname, channel, is_query):
         if not message.startswith(self.prefix):
             if is_query:
                 self.on_query(message, nickname)
@@ -85,9 +90,11 @@ class Shellbot(IrcBot):
             self.send(nickname, "Use in private queries is disabled.")
             return
         print("[{3}] [{0}] <{1}> {2}".format(
-            target, nickname, message, datetime.now().replace(microsecond=0)))
-        threading.Thread(target=self.run_command,
-                         args=(message[len(self.prefix):], target)).start()
+            channel or nickname, nickname, message,
+            datetime.now().replace(microsecond=0)))
+        threading.Thread(
+            target=self.run_command,
+            args=(message[len(self.prefix):], channel or nickname)).start()
 
     def run_command(self, command, target):
         # Strip ANSI escape sequences.
@@ -117,14 +124,17 @@ def main():
         print('Cannot be run as root unless "-u" is specified.')
         return
 
-    bot = Shellbot(int(args["-m"]), float(args["-t"]), args["-p"],
-                   args["--queries"], args["-u"], args["-d"])
+    bot = Shellbot(max_lines=int(args["-m"]), timeout=float(args["-t"]),
+                   prefix=args["-p"], queries=args["--queries"],
+                   user=args["-u"], cwd=args["-d"])
     bot.connect(args["<host>"], int(args["<port>"]))
 
-    if args["--identify"]:
-        print("Password: ", end="", file=sys.stderr)
-        bot.password(input())
-        print("Received password.", file=sys.stderr)
+    if args["--password"]:
+        if sys.stdin.isatty() or args["--use-getpass"]:
+            bot.password(getpass())
+        else:
+            bot.password(input())
+            print("Received password.", file=sys.stderr)
     bot.register(args["-n"])
 
     for channel in args["-c"]:

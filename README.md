@@ -27,7 +27,8 @@ limited permissions and run `shellbot` as that user. Anything that user can
 run, `shellbot` can run as well.
 
 By default, IRC users can kill `shellbot` by running `!$ kill <shellbot_proc>`.
-To prevent this, start `shellbot` as `root` and add the option `-u <limited_user>`.
+To prevent this, start `shellbot` as `root` and add the option `-u
+<limited_user>`.
 
 *Disclaimer: If not done properly, this can be very dangerous! In addition to
 the steps above, you should set process limits to avoid fork bombs.*
