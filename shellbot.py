@@ -51,7 +51,7 @@ import re
 import sys
 import threading
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 
 # If modified, replace the source URL with one to the modified version.
 help_message = """\
@@ -82,7 +82,7 @@ class Shellbot(IRCBot):
 
     def on_message(self, message, nickname, channel, is_query):
         split = message.split(" ", 1)
-        if len(split) < 2 or split[0] == self.prefix:
+        if len(split) < 2 or split[0] != self.prefix:
             if is_query:
                 self.on_query(message, nickname)
             return
