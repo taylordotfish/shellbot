@@ -51,7 +51,7 @@ import re
 import sys
 import threading
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 # If modified, replace the source URL with one to the modified version.
 help_message = """\
@@ -116,7 +116,7 @@ class Shellbot(IRCBot):
 
 
 def main():
-    args = docopt(__doc__)
+    args = docopt(__doc__, version=__version__)
     if args["-u"] and os.geteuid() != 0:
         print('Must be run as root when "-u" is specified.', file=sys.stderr)
         return
