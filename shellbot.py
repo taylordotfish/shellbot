@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (C) 2015 taylor.fish (https://github.com/taylordotfish)
 # Copyright (C) 2015 nc Krantz-Fire (https://pineco.net/)
-# Added --prefix option.
+# Added the option -p <prefix>.
 #
 # This file is part of shellbot.
 #
@@ -21,26 +21,22 @@
 # See EXCEPTIONS for additional permissions.
 """
 Usage:
-  shellbot <host> <port> [options] [-c <channel>]...
-  shellbot -h | --help
+  shellbot [options] <host> <port> [<channel>]...
+  shellbot -h | --help | --version
 
 Options:
-  -h --help       Display this help message.
-  -q --queries    Run commands in private queries as well as channels.
-  -i --password   Set a connection password. Can be used to identify with
-                  NickServ. Calls getpass() if stdin is a TTY and reads from
-                  stdin otherwise.
-  --use-getpass   Force password to be read with getpass(), even if stdin is
-                  not a TTY.
   -n <nickname>   The nickname to use [default: shellbot].
-  -c <channel>    An IRC channel to join.
   -m <max-lines>  The maximum number of lines of output to send [default: 10].
   -t <timeout>    How many seconds to wait before killing processes
+                  [default: 0.5].
   -p <prefix>     The prefix which identifies commands to run [default: !$].
   -u <user>       Run commands as the specified user. Prevents the shellbot
                   process from being killed. Must be run as root.
   -d <directory>  The current working directory for all commands.
-                  [default: 4].
+  --queries       Allow shell commands in private queries.
+  --password      Set a connection password. Can be used to identify with
+                  NickServ. Uses getpass() if stdin is not a TTY.
+  --getpass       Force password to be read with getpass().
 """
 from pyrcb import IRCBot
 from command import run_shell
@@ -52,49 +48,50 @@ import re
 import sys
 import threading
 
+__version__ = "0.1.0"
+
 # If modified, replace the source URL with one to the modified version.
 help_message = """\
 Source: https://github.com/taylordotfish/shellbot (AGPLv3 or later)
 Use in private queries is {0}.
-To run a command, send "{1} [command]".
+To run a command, send "{1} <command>".
 """
 
 
 class Shellbot(IRCBot):
-    def __init__(self, max_lines, timeout, prefix, queries, user, cwd):
-        super(Shellbot, self).__init__()
-        self.max_lines = max_lines
+    def __init__(self, lines, timeout, prefix, queries, user, cwd, **kwargs):
+        super(Shellbot, self).__init__(**kwargs)
+        self.max_lines = lines
         self.timeout = timeout
-        self.prefix = prefix + " "
+        self.prefix = prefix
         self.allow_queries = queries
         self.cmd_user = user
         self.cwd = cwd
 
     def on_query(self, message, nickname):
         if message.lower() == "help":
-            help_lines = help_message.format(
-                ["disabled", "enabled"][self.allow_queries],
-                self.prefix).splitlines()
-            for line in help_lines:
+            response = help_message.format(
+                ["disabled", "enabled"][self.allow_queries], self.prefix)
+            for line in response.splitlines():
                 self.send(nickname, line)
         else:
-            self.send(nickname, '"/msg {0} help" for help'
-                                .format(self.nickname))
+            self.send(nickname, 'Type "help" for help.')
 
     def on_message(self, message, nickname, channel, is_query):
-        if not message.startswith(self.prefix):
+        split = message.split(" ", 1)
+        if len(split) < 2 or split[0] == self.prefix:
             if is_query:
                 self.on_query(message, nickname)
             return
         if is_query and not self.allow_queries:
-            self.send(nickname, "Use in private queries is disabled.")
+            self.send(nickname, "Running commands in queries is disabled.")
             return
         print("[{3}] [{0}] <{1}> {2}".format(
             channel or nickname, nickname, message,
             datetime.now().replace(microsecond=0)))
         threading.Thread(
             target=self.run_command,
-            args=(message[len(self.prefix):], channel or nickname)).start()
+            args=(split[1], channel or nickname)).start()
 
     def run_command(self, command, target):
         # Strip ANSI escape sequences.
@@ -106,7 +103,7 @@ class Shellbot(IRCBot):
             self.send(target, line)
             print(">>> " + line)
         if len(lines) > self.max_lines:
-            message = "...output trimmed to {0} lines".format(self.max_lines)
+            message = "...output trimmed to {0} lines.".format(self.max_lines)
             self.send(target, message)
             print(">>> " + message)
         if not lines:
@@ -118,26 +115,25 @@ class Shellbot(IRCBot):
 def main():
     args = docopt(__doc__)
     if args["-u"] and os.geteuid() != 0:
-        print('Must be run as root when "-u" is specified.')
+        print('Must be run as root when "-u" is specified.', file=sys.stderr)
         return
     if not args["-u"] and os.geteuid() == 0:
-        print('Cannot be run as root unless "-u" is specified.')
-        return
+        print('Warning: Running as root without "-u" option.', file=sys.stderr)
 
-    bot = Shellbot(max_lines=int(args["-m"]), timeout=float(args["-t"]),
+    bot = Shellbot(lines=int(args["-m"]), timeout=float(args["-t"]),
                    prefix=args["-p"], queries=args["--queries"],
                    user=args["-u"], cwd=args["-d"])
     bot.connect(args["<host>"], int(args["<port>"]))
 
     if args["--password"]:
-        if sys.stdin.isatty() or args["--use-getpass"]:
-            bot.password(getpass())
-        else:
-            bot.password(input())
+        print("Password: ", end="", file=sys.stderr, flush=True)
+        use_getpass = sys.stdin.isatty() or args["--getpass"]
+        bot.password(getpass("") if use_getpass else input())
+        if not use_getpass:
             print("Received password.", file=sys.stderr)
     bot.register(args["-n"])
 
-    for channel in args["-c"]:
+    for channel in args["<channel>"]:
         bot.join(channel)
     bot.listen()
 
