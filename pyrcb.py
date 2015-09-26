@@ -16,7 +16,7 @@
 from __future__ import print_function
 from __future__ import unicode_literals
 from bisect import insort
-from collections import defaultdict
+from collections import OrderedDict
 import errno
 import re
 import socket
@@ -24,7 +24,7 @@ import ssl
 import threading
 import time
 
-__version__ = "1.7.1"
+__version__ = "1.7.2"
 
 
 class IRCBot(object):
@@ -623,18 +623,31 @@ class IStr(type("")):
         return self._upper
 
 
-class IDefaultDict(defaultdict):
+class IDefaultDict(OrderedDict):
     """A case-insensitive `~collections.defaultdict` class based on `IRC case
     rules`_.
 
     Key equality is case-insensitive. Keys are converted to `IStr` upon
     assignment and retrieval. Keys should be only of type `str` or `IStr`.
 
+    This class is actually a subclass of `~collections.OrderedDict`, so keys
+    are kept in the order they were added, but the functionality of
+    `~collections.defaultdict` is available.
+
     .. _IRC case rules: https://tools.ietf.org/html/rfc2812#section-2.2
     """
+    def __init__(self, default_factory=None, *args, **kwargs):
+        super(IDefaultDict, self).__init__(*args, **kwargs)
+        self.default_factory = default_factory
 
     def __getitem__(self, key):
         return super(IDefaultDict, self).__getitem__(IStr(key))
 
     def __setitem__(self, key, value):
         super(IDefaultDict, self).__setitem__(IStr(key), value)
+
+    def __missing__(self, key):
+        if self.default_factory is None:
+            raise KeyError(key)
+        self[key] = self.default_factory()
+        return self[key]
