@@ -25,18 +25,21 @@ Usage:
   shellbot -h | --help | --version
 
 Options:
-  -n <nickname>   The nickname to use [default: shellbot].
-  -m <max-lines>  The maximum number of lines of output to send [default: 10].
-  -t <timeout>    How many seconds to wait before killing processes
-                  [default: 0.5].
-  -p <prefix>     The prefix which identifies commands to run [default: !$].
-  -u <user>       Run commands as the specified user. Prevents the shellbot
-                  process from being killed. Must be run as root.
-  -d <directory>  The current working directory for all commands.
-  --queries       Allow shell commands in private queries.
-  --password      Set a connection password. Can be used to identify with
-                  NickServ. Uses getpass() if stdin is not a TTY.
-  --getpass       Force password to be read with getpass().
+  -n <nickname>    The nickname to use [default: shellbot].
+  -m <max-lines>   The maximum number of lines of output to send [default: 10].
+  -t <timeout>     How many seconds to wait before killing processes
+                   [default: 0.5].
+  -p <prefix>      The prefix which identifies commands to run [default: !$].
+  -u <user>        Run commands as the specified user. Prevents the shellbot
+                   process from being killed. Must be run as root.
+  -d <directory>   The current working directory for all commands.
+  --queries        Allow shell commands in private queries.
+  --password       Set a connection password. Can be used to identify with
+                   NickServ. Uses getpass() if stdin is not a TTY.
+  --getpass        Force password to be read with getpass().
+  --ssl            Use SSL/TLS to connect to the IRC server.
+  --cafile <file>  Use the specified list of CA root certificates to
+                   verify the IRC server's certificate.
 """
 from pyrcb import IRCBot
 from command import run_shell
@@ -48,7 +51,7 @@ import re
 import sys
 import threading
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 # If modified, replace the source URL with one to the modified version.
 help_message = """\
@@ -123,7 +126,8 @@ def main():
     bot = Shellbot(lines=int(args["-m"]), timeout=float(args["-t"]),
                    prefix=args["-p"], queries=args["--queries"],
                    user=args["-u"], cwd=args["-d"])
-    bot.connect(args["<host>"], int(args["<port>"]))
+    bot.connect(args["<host>"], int(args["<port>"]), use_ssl=args["--ssl"],
+                ca_certs=args["--cafile"])
 
     if args["--password"]:
         print("Password: ", end="", file=sys.stderr, flush=True)
