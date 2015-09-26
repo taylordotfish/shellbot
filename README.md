@@ -3,7 +3,7 @@ shellbot
 
 Version 0.1.3
 
-`shellbot` is an IRC bot (using [pyrcb](https://github.com/taylordotfish/pyrcb))
+*shellbot* is an IRC bot (using [pyrcb](https://github.com/taylordotfish/pyrcb))
 that runs shell commands. For example,
 
 ```
@@ -18,19 +18,18 @@ that runs shell commands. For example,
 <shellbot>                 ||     ||
 ```
 
-To run a command with `shellbot`, prefix your command with `!$` (and a space).
+To run a command with shellbot, prefix your command with `!$` (and a space).
 `/msg shellbot help` for more information.
 
 See `shellbot --help` for information on how to run it.
 
-Because `shellbot` runs any command it receives, it has the potential to cause
+Because shellbot runs any command it receives, it has the potential to cause
 serious damage. It is highly recommended that you create a new user with
-limited permissions and run `shellbot` as that user. Anything that user can
-run, `shellbot` can run as well.
+limited permissions and run shellbot as that user. Anything that user can run,
+shellbot can run as well.
 
-By default, IRC users can kill `shellbot` by running `!$ kill <shellbot-proc>`.
-To prevent this, start `shellbot` as `root` and add the option `-u
-<limited-user>`.
+By default, IRC users can kill shellbot by running `!$ kill <shellbot-proc>`.
+To prevent this, start shellbot as root and add the option `-u <limited-user>`.
 
 *Disclaimer: If not done properly, running shellbot can be very dangerous! In
 addition to the steps above, you should set (among other precautions) process
