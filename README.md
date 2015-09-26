@@ -3,8 +3,10 @@ shellbot
 
 Version 0.1.3
 
-*shellbot* is an IRC bot (using [pyrcb](https://github.com/taylordotfish/pyrcb))
-that runs shell commands. For example,
+**shellbot** is an IRC bot (using [pyrcb]) that runs shell commands.
+For example,
+
+[pyrcb]: https://github.com/taylordotfish/pyrcb
 
 ```
 <irc_user> !$ cowsay moo
