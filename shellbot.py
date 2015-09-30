@@ -52,14 +52,15 @@ import re
 import sys
 import threading
 
-__version__ = "0.1.4"
+__version__ = "0.1.5"
 
 # If modified, replace the source URL with one to the modified version.
 help_message = """\
+shellbot v{0}
 Source: https://github.com/taylordotfish/shellbot (AGPLv3 or later)
-Use in private queries is {0}.
-To run a command, send "{1} <command>".
-"""
+Use in private queries is {{0}}.
+To run a command, send "{{1}} <command>".
+""".format(__version__)
 
 
 class Shellbot(IRCBot):
