@@ -24,7 +24,7 @@ import ssl
 import threading
 import time
 
-__version__ = "1.7.2"
+__version__ = "1.7.3"
 
 
 class IRCBot(object):
@@ -46,6 +46,8 @@ class IRCBot(object):
         self.debug_print = debug_print
         self.print_function = print_function
         self.delay = delay
+        self._first_use = True
+        self._init_attr()
 
     # Initializes attributes.
     def _init_attr(self):
@@ -88,7 +90,10 @@ class IRCBot(object):
           received from the IRC server and the server's hostname will be
           verified.
         """
-        self._init_attr()
+        if not self._first_use:
+            self._init_attr()
+        self._first_use = False
+
         self.hostname = hostname
         self.port = port
         self.socket.connect((hostname, port))
