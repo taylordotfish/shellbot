@@ -37,6 +37,7 @@ Options:
   --password       Set a connection password. Can be used to identify with
                    NickServ. Uses getpass() if stdin is not a TTY.
   --getpass        Force password to be read with getpass().
+  --loop           Restart if disconnected from the IRC server.
   --ssl            Use SSL/TLS to connect to the IRC server.
   --cafile <file>  Use the specified list of CA root certificates to
                    verify the IRC server's certificate.
@@ -51,7 +52,7 @@ import re
 import sys
 import threading
 
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 
 # If modified, replace the source URL with one to the modified version.
 help_message = """\
@@ -115,6 +116,20 @@ class Shellbot(IRCBot):
             print(">>> " + message)
 
 
+def start(bot, args, password):
+    bot.connect(args["<host>"], int(args["<port>"]),
+                use_ssl=args["--ssl"], ca_certs=args["--cafile"])
+
+    if password:
+        bot.password(password)
+    bot.register(args["-n"])
+
+    for channel in args["<channel>"]:
+        bot.join(channel)
+    bot.listen()
+    print("Disconnected from server.")
+
+
 def main():
     args = docopt(__doc__, version=__version__)
     if args["-u"] and os.geteuid() != 0:
@@ -123,23 +138,22 @@ def main():
     if not args["-u"] and os.geteuid() == 0:
         print('Warning: Running as root without "-u" option.', file=sys.stderr)
 
-    bot = Shellbot(lines=int(args["-m"]), timeout=float(args["-t"]),
-                   prefix=args["-p"], queries=args["--queries"],
-                   user=args["-u"], cwd=args["-d"])
-    bot.connect(args["<host>"], int(args["<port>"]), use_ssl=args["--ssl"],
-                ca_certs=args["--cafile"])
-
+    password = None
     if args["--password"]:
         print("Password: ", end="", file=sys.stderr, flush=True)
         use_getpass = sys.stdin.isatty() or args["--getpass"]
-        bot.password(getpass("") if use_getpass else input())
+        password = getpass("") if use_getpass else input()
         if not use_getpass:
             print("Received password.", file=sys.stderr)
-    bot.register(args["-n"])
 
-    for channel in args["<channel>"]:
-        bot.join(channel)
-    bot.listen()
+    bot = Shellbot(lines=int(args["-m"]), timeout=float(args["-t"]),
+                   prefix=args["-p"], queries=args["--queries"],
+                   user=args["-u"], cwd=args["-d"])
+
+    start(bot, args, password)
+    while args["--loop"]:
+        start(bot, args, password)
+
 
 if __name__ == "__main__":
     main()
