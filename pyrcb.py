@@ -24,7 +24,7 @@ import ssl
 import threading
 import time
 
-__version__ = "1.7.3"
+__version__ = "1.7.4"
 
 
 class IRCBot(object):
@@ -79,16 +79,23 @@ class IRCBot(object):
     # Public IRC methods
     # ==================
 
-    def connect(self, hostname, port, use_ssl=False, ca_certs=None):
+    def connect(self, hostname, port, use_ssl=False,
+                ca_certs=None, verify_ssl=True):
         """Connects to an IRC server.
+
+        SSL/TLS support requires at least Python 3.2 or Python 2.7.9. On
+        Windows, system CA certificates cannot be loaded with Python 3.2 or
+        3.3, so either ``ca_certs`` must be provided or ``verify_ssl`` must be
+        false.
 
         :param str hostname: The hostname of the IRC server.
         :param int port: The port of the IRC server.
         :param bool use_ssl: Whether or not to use SSL/TLS.
-        :param str ca_certs: The path to a list of trusted CA certificates (to
-          be passed to :func:`ssl.wrap_socket`). If provided, the certificate
-          received from the IRC server and the server's hostname will be
-          verified.
+        :param str ca_certs: Optional path to a list of trusted CA certificates
+          (to be passed to :func:`ssl.wrap_socket`). If omitted, the system's
+          default CA certificates will be loaded.
+        :param bool verify_ssl: Whether or not to verify the server's SSL/TLS
+          certificate and hostname.
         """
         if not self._first_use:
             self._init_attr()
@@ -97,11 +104,21 @@ class IRCBot(object):
         self.hostname = hostname
         self.port = port
         self.socket.connect((hostname, port))
+
         if use_ssl:
-            reqs = ssl.CERT_REQUIRED if ca_certs else ssl.CERT_NONE
-            self.socket = ssl.wrap_socket(
-                self.socket, cert_reqs=reqs, ca_certs=ca_certs)
+            context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+            if verify_ssl:
+                context.verify_mode = ssl.CERT_REQUIRED
             if ca_certs:
+                context.load_verify_locations(cafile=ca_certs)
+            else:
+                # Call load_default_certs() if available; otherwise, call
+                # set_default_verify_paths() (doesn't work on Windows).
+                getattr(context, "load_default_certs",
+                        context.set_default_verify_paths)()
+
+            self.socket = context.wrap_socket(self.socket)
+            if verify_ssl:
                 ssl.match_hostname(self.socket.getpeercert(), hostname)
 
         self.alive = True
