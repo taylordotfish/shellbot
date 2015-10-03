@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 # Copyright (C) 2015 taylor.fish (https://github.com/taylordotfish)
-# Copyright (C) 2015 nc Krantz-Fire (https://pineco.net/)
-# Added the option -p <prefix>.
 #
 # This file is part of shellbot.
 #
