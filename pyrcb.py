@@ -17,14 +17,16 @@ from __future__ import print_function
 from __future__ import unicode_literals
 from bisect import insort
 from collections import OrderedDict
+from locale import getpreferredencoding
 import errno
 import re
 import socket
 import ssl
+import sys
 import threading
 import time
 
-__version__ = "1.7.4"
+__version__ = "1.7.6"
 
 
 class IRCBot(object):
@@ -37,14 +39,15 @@ class IRCBot(object):
 
     :param bool debug_print: Whether or not communication with the IRC server
       should be printed.
-    :param callable print_function: The print function to be used if
-      ``debug_print`` is true. Should accept a single string argument.
+    :param callable print_function: An optional function to be used with
+      ``debug_print``. Should accept a single unicode string argument.
+      Otherwise, communication is printed to stdout.
     :param bool delay: Whether or not sent messages should be delayed to avoid
       server throttling or spam prevention.
     """
-    def __init__(self, debug_print=False, print_function=print, delay=True):
+    def __init__(self, debug_print=False, print_function=None, delay=True):
         self.debug_print = debug_print
-        self.print_function = print_function
+        self.print_function = print_function or safe_print
         self.delay = delay
         self._first_use = True
         self._init_attr()
@@ -381,7 +384,7 @@ class IRCBot(object):
             self._handle(line)
 
     # Parses an IRC message and calls the appropriate event.
-    def _handle(self, message, async_events=False):
+    def _handle(self, message):
         nick, cmd, args = IRCBot.parse(message)
         if cmd in ["JOIN", "PART", "KICK"]:
             channel = IStr(args[0])
@@ -557,6 +560,12 @@ class IRCBot(object):
             self.delay_event.set()
 
 
+# Prints a string, replacing characters invalid in the current encoding.
+def safe_print(string, file=sys.stdout):
+    encoding = getpreferredencoding()
+    print(string.encode(encoding, "replace").decode(encoding), file=file)
+
+
 # Returns a lowercase version of a string, according to IRC case rules.
 def irc_lower(string):
     lower = string.lower()
@@ -573,34 +582,39 @@ def irc_upper(string):
     return upper
 
 
-# Decorator to implement case-insensitive operators for IStr.
-def istr_operators(cls):
+# Decorator to implement case-insensitive methods for IStr.
+def istr_methods(cls):
     def get_method(name):
-        def method(self, other):
-            if isinstance(other, str):
-                other = irc_lower(other)
-            return getattr(self._lower, name)(other)
+        def method(self, string, *args, **kwargs):
+            if isinstance(string, (str, type(""))):
+                string = irc_lower(string)
+            return getattr(self._lower, name)(string, *args, **kwargs)
         return method
-    for name in ("lt", "le", "ne", "eq", "gt", "ge", "contains"):
+
+    for name in ["index", "find", "count", "startswith", "endswith"]:
+        setattr(cls, name, get_method(name))
+    for name in ["lt", "le", "ne", "eq", "gt", "ge", "contains"]:
         name = "__{0}__".format(name)
         setattr(cls, name, get_method(name))
     return cls
 
 
-# Decorator to implement case-insensitive methods for IStr.
-def istr_methods(cls):
+# Decorator to implement case-insensitive methods for IDefaultDict.
+def idefaultdict_methods(cls):
     def get_method(name):
-        def method(self, string, start=None, end=None):
-            return getattr(self._lower, name)(irc_lower(string), start, end)
+        def method(self, key, *args, **kwargs):
+            if isinstance(key, (str, type(""))):
+                key = IStr(key)
+            return getattr(super(cls, self), name)(key, *args, **kwargs)
         return method
-    for name in ("index", "find", "count", "startswith", "endswith"):
+
+    for name in ["get", "__getitem__", "__setitem__", "__contains__"]:
         setattr(cls, name, get_method(name))
     return cls
 
 
-@istr_operators
+# type("") is unicode in Python 2 and str in Python 3.
 @istr_methods
-# Inherit from unicode() in Python 2 and str() in Python 3.
 class IStr(type("")):
     """Bases: `str` (`unicode` in Python 2)
 
@@ -645,6 +659,7 @@ class IStr(type("")):
         return self._upper
 
 
+@idefaultdict_methods
 class IDefaultDict(OrderedDict):
     """A case-insensitive `~collections.defaultdict` class based on `IRC case
     rules`_.
@@ -661,12 +676,6 @@ class IDefaultDict(OrderedDict):
     def __init__(self, default_factory=None, *args, **kwargs):
         super(IDefaultDict, self).__init__(*args, **kwargs)
         self.default_factory = default_factory
-
-    def __getitem__(self, key):
-        return super(IDefaultDict, self).__getitem__(IStr(key))
-
-    def __setitem__(self, key, value):
-        super(IDefaultDict, self).__setitem__(IStr(key), value)
 
     def __missing__(self, key):
         if self.default_factory is None:
