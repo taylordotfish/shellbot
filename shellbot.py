@@ -51,7 +51,7 @@ import re
 import sys
 import threading
 
-__version__ = "0.1.6"
+__version__ = "0.1.7"
 
 # If modified, replace the source URL with one to the modified version.
 help_message = """\
@@ -99,9 +99,9 @@ class Shellbot(IRCBot):
 
     def run_command(self, command, target):
         # Strip ANSI escape sequences.
-        lines = [re.sub(r"\x1b.*?[a-zA-Z]", "", l) for l in run_shell(
-            command, self.cmd_user, self.cwd, self.timeout, self.timeout / 2)]
-        lines = [l for l in lines if l]
+        lines = (re.sub(r"\x1b.*?[a-zA-Z]", "", l) for l in run_shell(
+            command, self.cmd_user, self.cwd, self.timeout, self.timeout / 2))
+        lines = list(filter(None, lines))
 
         for line in lines[:self.max_lines]:
             self.send(target, line)

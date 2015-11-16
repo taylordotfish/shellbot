@@ -22,10 +22,18 @@ import os
 import pwd
 import signal
 
-env = {"PATH": "/bin:/usr/bin:/usr/games:/usr/local/bin:/usr/local/games"}
+env = {
+    "PATH": ":".join([
+        "/bin",
+        "/usr/bin",
+        "/usr/games",
+        "/usr/local/bin",
+        "/usr/local/games",
+    ]),
+}
 
 
-def run_shell(command, user, cwd, timeout, term_timeout):
+def run_shell(command, user, cwd, timeout, kill_timeout):
     if user:
         info = pwd.getpwnam(user)
         preexec = setid(info.pw_uid, info.pw_gid)
@@ -42,16 +50,27 @@ def run_shell(command, user, cwd, timeout, term_timeout):
     def run_timeout(timeout, signal):
         try:
             output, error = process.communicate(timeout=timeout)
-            return (output.decode("utf8", "ignore").splitlines() +
-                    error.decode("utf8", "ignore").splitlines())
+            output_lines = output.decode("utf8", "ignore").splitlines()
+            error_lines = output.decode("utf8", "ignore").splitlines()
+            return output_lines + error_lines
         except TimeoutExpired:
             os.killpg(process.pid, signal)
 
+    # Communicate with process; send SIGTERM after timeout.
     result = run_timeout(timeout, signal.SIGTERM)
-    for i in range(2):
-        if result is None:
-            result = run_timeout(term_timeout, signal.SIGKILL)
-    return result
+
+    # Try to grab output from SIGTERM; send SIGKILL after timeout.
+    if result is None:
+        result = run_timeout(kill_timeout, signal.SIGKILL)
+
+    # Grab output from SIGKILL.
+    # If run_timeout() returns None, the process couldn't be killed.
+    if result is None:
+        result = run_timeout(0, signal.SIGKILL)
+
+    if result is None:
+        print("[!] Process couldn't be killed: " + command)
+    return result or []
 
 
 def setid(uid, gid):
