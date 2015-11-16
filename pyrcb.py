@@ -26,7 +26,7 @@ import sys
 import threading
 import time
 
-__version__ = "1.7.6"
+__version__ = "1.7.7"
 
 
 class IRCBot(object):
@@ -376,7 +376,7 @@ class IRCBot(object):
             try:
                 line = self.readline()
             except socket.error as e:
-                if e.errno not in [errno.EPIPE, errno.ENOTCONN]:
+                if e.errno != errno.EPIPE:
                     raise
                 return
             if line is None:
@@ -442,14 +442,13 @@ class IRCBot(object):
     # from the list of channels if this bot is being removed.
     def remove_nickname(self, nickname, channels):
         removed_channels = []
-        for channel in channels:
-            nicklist = self.nicklist[channel]
-            if nickname in nicklist:
-                if nickname == self.nickname:
-                    if channel in self.channels:
-                        self.channels.remove(channel)
-                nicklist.remove(nickname)
-                removed_channels.append(channel)
+        pairs = zip(channels, map(self.nicklist.get, channels))
+        pairs = ((c, n) for c, n in pairs if nickname in n)
+        for channel, nicklist in pairs:
+            if nickname == self.nickname and channel in self.channels:
+                self.channels.remove(channel)
+            nicklist.remove(nickname)
+            removed_channels.append(channel)
         return removed_channels
 
     # Replaces a nickname in all joined channels' nicklists.
@@ -553,7 +552,8 @@ class IRCBot(object):
             self.socket.shutdown(socket.SHUT_RDWR)
             self.socket.close()
         except socket.error as e:
-            if e.errno not in [errno.EPIPE, errno.ENOTCONN]:
+            errnos = [errno.EBADF, errno.ENOTCONN]
+            if e.errno not in errnos:
                 raise
         finally:
             self.alive = False
