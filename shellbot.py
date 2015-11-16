@@ -51,7 +51,7 @@ import re
 import sys
 import threading
 
-__version__ = "0.1.7"
+__version__ = "0.1.8"
 
 # If modified, replace the source URL with one to the modified version.
 help_message = """\
@@ -74,8 +74,8 @@ class Shellbot(IRCBot):
 
     def on_query(self, message, nickname):
         if message.lower() == "help":
-            response = help_message.format(
-                ["disabled", "enabled"][self.allow_queries], self.prefix)
+            status = ["disabled", "enabled"][self.allow_queries]
+            response = help_message.format(status, self.prefix)
             for line in response.splitlines():
                 self.send(nickname, line)
         else:
@@ -95,11 +95,16 @@ class Shellbot(IRCBot):
             datetime.now().replace(microsecond=0)))
         threading.Thread(
             target=self.run_command,
-            args=(split[1], channel or nickname)).start()
+            args=[split[1], channel or nickname]).start()
 
     def run_command(self, command, target):
-        # Strip ANSI escape sequences.
-        lines = (re.sub(r"\x1b.*?[a-zA-Z]", "", l) for l in run_shell(
+        def clean_line(line):
+            # Strip ANSI escape sequences.
+            line = re.sub(r"\x1b.*?[a-zA-Z]", "", line)
+            return line.replace("\t", " " * 4)
+
+        # Clean lines and remove blank lines.
+        lines = map(clean_line, run_shell(
             command, self.cmd_user, self.cwd, self.timeout, self.timeout / 2))
         lines = list(filter(None, lines))
 
