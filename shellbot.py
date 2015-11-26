@@ -51,7 +51,7 @@ import re
 import sys
 import threading
 
-__version__ = "0.1.8"
+__version__ = "0.1.9"
 
 # If modified, replace the source URL with one to the modified version.
 help_message = """\

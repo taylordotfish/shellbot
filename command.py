@@ -51,7 +51,7 @@ def run_shell(command, user, cwd, timeout, kill_timeout):
         try:
             output, error = process.communicate(timeout=timeout)
             output_lines = output.decode("utf8", "ignore").splitlines()
-            error_lines = output.decode("utf8", "ignore").splitlines()
+            error_lines = error.decode("utf8", "ignore").splitlines()
             return output_lines + error_lines
         except TimeoutExpired:
             os.killpg(process.pid, signal)

@@ -1,7 +1,7 @@
 shellbot
 ========
 
-Version 0.1.8
+Version 0.1.9
 
 **shellbot** is an IRC bot (using [pyrcb]) that runs shell commands.
 For example,
