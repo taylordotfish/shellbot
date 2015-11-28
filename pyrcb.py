@@ -26,7 +26,7 @@ import sys
 import threading
 import time
 
-__version__ = "1.7.7"
+__version__ = "1.7.8"
 
 
 class IRCBot(object):
@@ -376,7 +376,7 @@ class IRCBot(object):
             try:
                 line = self.readline()
             except socket.error as e:
-                if e.errno != errno.EPIPE:
+                if not (is_badf(e) or is_conn_err(e)):
                     raise
                 return
             if line is None:
@@ -552,12 +552,29 @@ class IRCBot(object):
             self.socket.shutdown(socket.SHUT_RDWR)
             self.socket.close()
         except socket.error as e:
-            errnos = [errno.EBADF, errno.ENOTCONN]
-            if e.errno not in errnos:
+            if not (is_badf(e) or is_conn_err(e)):
                 raise
         finally:
             self.alive = False
             self.delay_event.set()
+
+
+# Checks if an exception is a ConnectionError
+# using errnos for Python 2 compatibility.
+def is_conn_err(ex):
+    return ex.errno in [
+        errno.EPIPE,
+        errno.ESHUTDOWN,
+        errno.ECONNABORTED,
+        errno.ECONNREFUSED,
+        errno.ECONNESET
+    ]
+
+
+def is_badf(ex):
+    return ex.errno in [
+        errno.EBADF
+    ]
 
 
 # Prints a string, replacing characters invalid in the current encoding.
