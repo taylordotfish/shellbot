@@ -24,6 +24,7 @@ import os
 import pwd
 import selectors
 import signal
+import time
 
 
 class CommandRunner:
@@ -60,8 +61,10 @@ class CommandRunner:
         output = b""
         selector = selectors.DefaultSelector()
         selector.register(process.stdout, selectors.EVENT_READ)
+        end_time = time.monotonic() + self.timeout
         while len(output) <= self.output_limit:
-            if not selector.select(self.timeout):
+            time_remaining = end_time - time.monotonic()
+            if time_remaining < 0 or not selector.select(time_remaining):
                 break
             data = process.stdout.read1(1024)
             if not data:
