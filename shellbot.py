@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (C) 2015 taylor.fish (https://github.com/taylordotfish)
+# Copyright (C) 2015-2016 taylor.fish <contact@taylor.fish>
 #
 # This file is part of shellbot.
 #
@@ -26,11 +26,12 @@ Options:
   -n <nickname>    The nickname to use [default: shellbot].
   -m <max-lines>   The maximum number of lines of output to send [default: 10].
   -t <timeout>     How many seconds to wait before killing processes
-                   [default: 0.5].
+                   [default: 0.25].
   -p <prefix>      The prefix which identifies commands to run [default: !$].
   -u <user>        Run commands as the specified user. Prevents the shellbot
                    process from being killed. Must be run as root.
   -d <directory>   The current working directory for all commands.
+  --path           Additions to the PATH environment variable for commands.
   --queries        Allow shell commands in private queries.
   --password       Set a connection password. Can be used to identify with
                    NickServ. Uses getpass() if stdin is not a TTY.
@@ -42,7 +43,7 @@ Options:
                    be used if not provided.
 """
 from pyrcb import IRCBot
-from command import run_shell
+from command import CommandRunner
 from docopt import docopt
 from datetime import datetime
 from getpass import getpass
@@ -51,10 +52,10 @@ import re
 import sys
 import threading
 
-__version__ = "0.1.9"
+__version__ = "0.2.0"
 
 # If modified, replace the source URL with one to the modified version.
-help_message = """\
+HELP_MESSAGE = """\
 shellbot v{0}
 Source: https://github.com/taylordotfish/shellbot (AGPLv3 or later)
 Use in private queries is {{0}}.
@@ -66,16 +67,17 @@ class Shellbot(IRCBot):
     def __init__(self, lines, timeout, prefix, queries, user, cwd, **kwargs):
         super(Shellbot, self).__init__(**kwargs)
         self.max_lines = lines
-        self.timeout = timeout
         self.prefix = prefix
         self.allow_queries = queries
-        self.cmd_user = user
-        self.cwd = cwd
+        self.runner = CommandRunner(timeout, cwd, user)
+        self._runner_thread = threading.Thread(
+            target=self.runner.loop, daemon=True)
+        self._runner_thread.start()
 
     def on_query(self, message, nickname):
         if message.lower() == "help":
             status = ["disabled", "enabled"][self.allow_queries]
-            response = help_message.format(status, self.prefix)
+            response = HELP_MESSAGE.format(status, self.prefix)
             for line in response.splitlines():
                 self.send(nickname, line)
         else:
@@ -90,70 +92,89 @@ class Shellbot(IRCBot):
         if is_query and not self.allow_queries:
             self.send(nickname, "Running commands in queries is disabled.")
             return
-        print("[{3}] [{0}] <{1}> {2}".format(
-            channel or nickname, nickname, message,
-            datetime.now().replace(microsecond=0)))
-        threading.Thread(
-            target=self.run_command,
-            args=[split[1], channel or nickname]).start()
+        log("[{0}] <{1}> {2}".format(channel or nickname, nickname, message))
+        self.runner.enqueue(split[1], self.command_done, [channel or nickname])
 
-    def run_command(self, command, target):
-        def clean_line(line):
-            # Strip ANSI escape sequences.
-            line = re.sub(r"\x1b.*?[a-zA-Z]", "", line)
-            return line.replace("\t", " " * 4)
-
-        # Clean lines and remove blank lines.
-        lines = map(clean_line, run_shell(
-            command, self.cmd_user, self.cwd, self.timeout, self.timeout / 2))
+    def command_done(self, target, lines):
+        # Remove ANSI escape codes, replace tabs, and remove blank lines.
+        lines = (replace_tabs(remove_escape_codes(l)) for l in lines)
         lines = list(filter(None, lines))
 
-        for line in lines[:self.max_lines]:
+        # Split long lines into multiple IRC messages
+        # and then trim if there are too many.
+        split_lines = []
+        max_bytes = self.safe_message_length(target)
+        for line in lines:
+            split_lines += IRCBot.split_string(line, max_bytes)
+
+        for line in split_lines[:self.max_lines]:
             self.send(target, line)
-            print(">>> " + line)
+            log(">>> " + line)
         if len(lines) > self.max_lines:
             message = "...output trimmed to {0} lines.".format(self.max_lines)
             self.send(target, message)
-            print(">>> " + message)
+            log(">>> " + message)
         if not lines:
             message = "Command produced no output."
             self.send(target, message)
-            print(">>> " + message)
+            log(">>> " + message)
+
+
+def remove_escape_codes(string):
+    return re.sub(r"\x1b.*?[a-zA-Z]", "", string)
+
+
+def replace_tabs(string):
+    result = ""
+    split = string.split("\t")
+    for s in split[:-1]:
+        result += s + " " * (8 - (len(s) % 8))
+    return result + split[-1]
+
+
+def stderr(*args, **kwargs):
+    print(*args, **kwargs, file=sys.stderr)
+
+
+def log(*args, **kwargs):
+    print(datetime.now().strftime("[%Y-%m-%d %H:%M:%S]"), *args, **kwargs)
 
 
 def start(bot, args, password):
-    bot.connect(args["<host>"], int(args["<port>"]),
-                use_ssl=args["--ssl"], ca_certs=args["--cafile"])
-
+    bot.connect(
+        args["<host>"], int(args["<port>"]),
+        use_ssl=args["--ssl"], ca_certs=args["--cafile"])
     if password:
         bot.password(password)
     bot.register(args["-n"])
-
     for channel in args["<channel>"]:
         bot.join(channel)
     bot.listen()
+    bot.runner.reset()
     print("Disconnected from server.")
 
 
 def main():
     args = docopt(__doc__, version=__version__)
     if args["-u"] and os.geteuid() != 0:
-        print('Must be run as root when "-u" is specified.', file=sys.stderr)
+        stderr('Must be run as root with "-u".')
         return
     if not args["-u"] and os.geteuid() == 0:
-        print('Warning: Running as root without "-u" option.', file=sys.stderr)
+        stderr('WARNING: Running as root without "-u".')
 
     password = None
     if args["--password"]:
-        print("Password: ", end="", file=sys.stderr, flush=True)
+        stderr("Password: ", end="", flush=True)
         use_getpass = sys.stdin.isatty() or args["--getpass"]
         password = getpass("") if use_getpass else input()
         if not use_getpass:
-            print("Received password.", file=sys.stderr)
+            stderr("Received password.")
 
-    bot = Shellbot(lines=int(args["-m"]), timeout=float(args["-t"]),
-                   prefix=args["-p"], queries=args["--queries"],
-                   user=args["-u"], cwd=args["-d"])
+    bot = Shellbot(
+        lines=int(args["-m"]), timeout=float(args["-t"]), prefix=args["-p"],
+        queries=args["--queries"], user=args["-u"], cwd=args["-d"])
+    if args["--path"]:
+        bot.runner.path += ":" + args["--path"]
 
     start(bot, args, password)
     while args["--loop"]:

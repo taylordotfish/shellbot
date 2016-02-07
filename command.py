@@ -1,4 +1,4 @@
-# Copyright (C) 2015 taylor.fish (https://github.com/taylordotfish)
+# Copyright (C) 2015-2016 taylor.fish <contact@taylor.fish>
 #
 # This file is part of shellbot.
 #
@@ -17,60 +17,94 @@
 #
 # See EXCEPTIONS for additional permissions.
 
-from subprocess import Popen, PIPE, TimeoutExpired
+from locale import getpreferredencoding
+from queue import Queue
+from subprocess import Popen, PIPE, STDOUT, TimeoutExpired
 import os
 import pwd
+import selectors
 import signal
 
-env = {
-    "PATH": ":".join([
-        "/bin",
-        "/usr/bin",
-        "/usr/games",
-        "/usr/local/bin",
-        "/usr/local/games",
-    ]),
-}
 
+class CommandRunner:
+    def __init__(self, timeout, cwd=None, user=None):
+        self.user = user
+        self.cwd = cwd
+        self.timeout = timeout
 
-def run_shell(command, user, cwd, timeout, kill_timeout):
-    if user:
-        info = pwd.getpwnam(user)
-        preexec = setid(info.pw_uid, info.pw_gid)
-    else:
-        assert os.geteuid() != 0
-        assert os.getegid() != 0
-        preexec = os.setpgrp
+        self.shell = ["/bin/bash", "-c"]
+        self.output_limit = 100000
+        self.path = ":".join([
+            "/bin",
+            "/usr/bin",
+            "/usr/games",
+            "/usr/local/bin",
+            "/usr/local/games"
+        ])
 
-    process = Popen(
-        ["/bin/bash", "-c", command],
-        stdin=PIPE, stdout=PIPE, stderr=PIPE,
-        cwd=cwd, env=env, preexec_fn=preexec)
+        self.queue = Queue()
+        self.stop = False
+        self.state = 0
 
-    def run_timeout(timeout, signal):
+    def get_subprocess(self, command):
+        preexec = None
+        if self.user:
+            info = pwd.getpwnam(self.user)
+            preexec = setid(info.pw_uid, info.pw_gid)
+        return Popen(
+            self.shell + [command], stdin=PIPE, stdout=PIPE, stderr=STDOUT,
+            cwd=self.cwd, env={"PATH": self.path}, preexec_fn=preexec,
+            start_new_session=True)
+
+    def get_output(self, process):
+        output = b""
+        selector = selectors.DefaultSelector()
+        selector.register(process.stdout, selectors.EVENT_READ)
+        while len(output) <= self.output_limit:
+            if not selector.select(self.timeout):
+                break
+            data = process.stdout.read1(1024)
+            if not data:
+                break
+            output += data
+        return output
+
+    def run(self, command):
+        process = self.get_subprocess(command)
+        output = self.get_output(process)
+
+        # Note: Processes which call setsid(), setpgrp(),
+        # or similar functions won't be killed.
+        if process.poll() is None:
+            os.killpg(process.pid, signal.SIGTERM)
+
         try:
-            output, error = process.communicate(timeout=timeout)
-            output_lines = output.decode("utf8", "ignore").splitlines()
-            error_lines = error.decode("utf8", "ignore").splitlines()
-            return output_lines + error_lines
+            process.wait(self.timeout / 2)
         except TimeoutExpired:
-            os.killpg(process.pid, signal)
+            os.killpg(process.pid, signal.SIGKILL)
+        return output.decode(getpreferredencoding(), "ignore").splitlines()
 
-    # Communicate with process; send SIGTERM after timeout.
-    result = run_timeout(timeout, signal.SIGTERM)
+    def enqueue(self, command, callback, args):
+        self.queue.put((command, callback, args, self.state))
 
-    # Try to grab output from SIGTERM; send SIGKILL after timeout.
-    if result is None:
-        result = run_timeout(kill_timeout, signal.SIGKILL)
+    def reset(self):
+        self.state += 1
+        self.queue.put(None)
 
-    # Grab output from SIGKILL.
-    # If run_timeout() returns None, the process couldn't be killed.
-    if result is None:
-        result = run_timeout(0, signal.SIGKILL)
+    def stop(self):
+        self.stop = True
+        self.reset()
 
-    if result is None:
-        print("[!] Process couldn't be killed: " + command)
-    return result or []
+    def loop(self):
+        while not self.stop:
+            item = self.queue.get()
+            if item is not None:
+                command, callback, args, state = item
+                if state == self.state:
+                    output = self.run(command)
+                if state == self.state:
+                    callback(*args, output)
+        self.stop = False
 
 
 def setid(uid, gid):
@@ -80,5 +114,4 @@ def setid(uid, gid):
     def result():
         os.setgid(uid)
         os.setuid(gid)
-        os.setpgrp()
     return result
