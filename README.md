@@ -20,19 +20,20 @@ For example,
 <shellbot>                 ||     ||
 ```
 
-To run a command with shellbot, prefix your command with `!$` (and a space).
-`/msg shellbot help` for more information.
+To run a command with shellbot, prefix your command with ``!$`` (and a space).
+``/msg shellbot help`` for more information.
 
-See `shellbot --help` for information on how to run it.
+shellbot should work on any Unix-like operating system. See ``shellbot --help``
+for information on how to run it.
 
 Because shellbot runs any command it receives, it has the potential to cause
 serious damage. It is *highly recommended* that you create a new user with
 limited permissions and run shellbot as that user. Anything that user can run,
 shellbot can run as well.
 
-By default, IRC users can kill shellbot by running `!$ kill <shellbot-proc>`.
-To prevent this, start shellbot as root and add the option `-u
-<shellbot-user>`.
+By default, IRC users can kill shellbot by running ``!$ kill <shellbot-proc>``.
+To prevent this, start shellbot as root and add the option ``-u
+<shellbot-user>``.
 
 *Disclaimer: If not done properly, running shellbot can be dangerous! You
 should set (among other precautions) process limits to avoid fork bombs. Be
