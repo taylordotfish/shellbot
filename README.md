@@ -60,3 +60,4 @@ Dependencies
 
 * Python 3.4 or higher
 * [docopt 0.6.6 or higher](https://pypi.python.org/pypi/docopt)
+* [Bash](https://www.gnu.org/software/bash/)
