@@ -46,7 +46,7 @@ class IRCBot(object):
     Instances of this class are reusable.
 
     :param bool debug_print: Whether or not communication with the IRC server
-      should be printed.
+      should be printed for debugging/logging purposes.
     :param callable print_function: An optional function to be used with
       ``debug_print``. Should accept a single unicode string argument.
       If not provided, communication is printed to stdout.
@@ -554,7 +554,8 @@ class IRCBot(object):
           take up when encoded as UTF-8.
         :param bool nobreak: If true, strings will be split only where
           whitespace occurs to avoid breaking words, unless this is not
-          possible. Whitespace between pieces is removed.
+          possible. If present, one space character will be removed between
+          string pieces.
         :param bool once: If true, the string will only be split once. The
           second piece is not guaranteed to be less than ``bytelen``.
         :returns: A list of the split string pieces.
@@ -577,28 +578,34 @@ class IRCBot(object):
         if len(bytestr) <= bytelen:
             return (string, "")
         split, rest = bytestr[:bytelen], bytestr[bytelen:]
+        # If the last byte of "split" is non-ASCII and the first byte of "rest"
+        # is neither ASCII nor the start of a multi-byte character, then a
+        # multi-byte Unicode character has been split and needs to be fixed.
         if ord(split[-1:]) >= 0x80 and 0x80 <= ord(rest[:1]) <= 0xc0:
             chars = reversed(list(enumerate(split)))
             start = next(i for i, c in chars if c >= 0xc0)
             split, rest = split[:start], split[start:] + rest
         return (split.decode("utf8"), rest.decode("utf8"))
 
-    # Like split_once(), but splits only where whitespace occurs
-    # to avoid breaking words (unless not possible).
-    # Whitespace between split strings is removed.
+    # Like split_once(), but splits only where whitespace occurs to avoid
+    # breaking words (unless not possible). If present, once space character
+    # between split strings will be removed (similar to WeeChat's behavior).
     @staticmethod
     def split_nobreak(string, bytelen):
         split, rest = IRCBot.split_once(string, bytelen)
         if not rest:
             return (split, rest)
         if not split[-1].isspace() and not rest[0].isspace():
-            space_split = split.rsplit(None, 1)
-            if len(space_split) < 2:
-                return (split, rest)
-            before, after = space_split
-            split, rest = before, after + rest
-            return (split, rest)
-        return (split.rstrip(), rest.lstrip())
+            chars = reversed(list(enumerate(split)))
+            space = next((i for i, c in chars if c.isspace()), -1)
+            if space >= 0:
+                split, rest = split[:space], split[space:] + rest
+        # If present, remove one space character between strings.
+        if rest[0] == " ":
+            rest = rest[1:]
+        elif split[-1] == " ":
+            split = split[:-1]
+        return (split, rest)
 
     # Parses an IRC message.
     @staticmethod

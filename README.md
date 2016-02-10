@@ -1,7 +1,7 @@
 shellbot
 ========
 
-Version 0.2.1
+Version 0.2.2
 
 **shellbot** is an [IRC bot] that runs shell commands.
 For example,
