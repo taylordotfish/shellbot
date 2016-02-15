@@ -52,7 +52,7 @@ import re
 import sys
 import threading
 
-__version__ = "0.2.3"
+__version__ = "0.2.4"
 
 # If modified, replace the source URL with one to the modified version.
 HELP_MESSAGE = """\
@@ -75,6 +75,7 @@ class Shellbot(IRCBot):
         self._runner_thread.start()
 
     def on_query(self, message, nickname):
+        log("[query] <{0}> {1}".format(nickname, message))
         if message.lower() == "help":
             status = ["disabled", "enabled"][self.allow_queries]
             response = HELP_MESSAGE.format(status, self.prefix)
@@ -89,10 +90,10 @@ class Shellbot(IRCBot):
             if is_query:
                 self.on_query(message, nickname)
             return
+        log("[{0}] <{1}> {2}".format(channel or "query", nickname, message))
         if is_query and not self.allow_queries:
             self.send(nickname, "Running commands in queries is disabled.")
             return
-        log("[{0}] <{1}> {2}".format(channel or nickname, nickname, message))
         self.runner.enqueue(split[1], self.command_done, [channel or nickname])
 
     def command_done(self, target, lines):
@@ -107,17 +108,21 @@ class Shellbot(IRCBot):
         for line in lines:
             split_lines += IRCBot.split_string(line, max_bytes)
 
+        logged_lines = []
         for line in split_lines[:self.max_lines]:
             self.send(target, line)
-            log(">>> " + line)
+            logged_lines.append(line)
         if len(lines) > self.max_lines:
             message = "...output trimmed to {0} lines.".format(self.max_lines)
             self.send(target, message)
-            log(">>> " + message)
+            logged_lines.append(message)
         if not lines:
             message = "Command produced no output."
             self.send(target, message)
-            log(">>> " + message)
+            logged_lines.append(message)
+
+        for line in logged_lines:
+            log("[{0}] >>> {1}".format(target, line))
 
 
 def remove_escape_codes(string):
