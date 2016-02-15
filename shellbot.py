@@ -97,26 +97,30 @@ class Shellbot(IRCBot):
         self.runner.enqueue(split[1], self.command_done, [channel or nickname])
 
     def command_done(self, target, lines):
-        # Remove ANSI escape codes, replace tabs, and remove blank lines.
-        lines = (replace_tabs(remove_escape_codes(l)) for l in lines)
-        lines = list(filter(None, lines))
+        cleaned_lines = []
+        for line in lines:
+            line = remove_escape_codes(line)
+            line = replace_tabs(line)
+            line = line.replace("\0", "")
+            if line:
+                cleaned_lines.append(line)
 
         # Split long lines into multiple IRC messages
         # and then trim if there are too many.
         split_lines = []
         max_bytes = self.safe_message_length(target)
-        for line in lines:
+        for line in cleaned_lines:
             split_lines += IRCBot.split_string(line, max_bytes)
 
         logged_lines = []
         for line in split_lines[:self.max_lines]:
             self.send(target, line)
             logged_lines.append(line)
-        if len(lines) > self.max_lines:
+        if len(split_lines) > self.max_lines:
             message = "...output trimmed to {0} lines.".format(self.max_lines)
             self.send(target, message)
             logged_lines.append(message)
-        if not lines:
+        if not split_lines:
             message = "Command produced no output."
             self.send(target, message)
             logged_lines.append(message)
