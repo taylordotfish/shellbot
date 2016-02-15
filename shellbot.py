@@ -31,7 +31,7 @@ Options:
   -u <user>        Run commands as the specified user. Prevents the shellbot
                    process from being killed. Must be run as root.
   -d <directory>   The current working directory for all commands.
-  --path           Additions to the PATH environment variable for commands.
+  --path <string>  Additions to the PATH environment variable for commands.
   --queries        Allow shell commands in private queries.
   --password       Set a connection password. Can be used to identify with
                    NickServ. Uses getpass() if stdin is not a TTY.
