@@ -28,7 +28,7 @@ import sys
 import threading
 import time
 
-__version__ = "1.9.0"
+__version__ = "1.10.0"
 
 # ustr is unicode in Python 2 (because of unicode_literals)
 # and str in Python 3.
@@ -284,8 +284,12 @@ class IRCBot(object):
         self.on_nick(nickname, new_nickname)
 
     def _on_353_namreply(self, server, target, chan_type, channel, names):
-        names = [IStr(n.lstrip("@+")) for n in names.split()]
-        self._names_buffer[channel] += names
+        for name in names.split():
+            is_op = name.startswith("@")
+            is_voiced = name.startswith("+")
+            name = IStr(name.lstrip("@+"))
+            name.is_op, name.is_voiced = is_op, is_voiced
+            self._names_buffer[channel].append(name)
 
     def _on_366_endofnames(self, server, target, channel, *args):
         self.nicklist.update(self._names_buffer)
@@ -369,7 +373,9 @@ class IRCBot(object):
 
         :param IStr channel: The channel that the list of users describes.
         :param list names: A list of nicknames of users in the channel.
-          Nicknames are of type `IStr`.
+          Nicknames are of type `IStr`, but have two additional boolean
+          attributes: ``is_voiced`` and ``is_op``, which specify whether or not
+          each user is voiced or is a channel operator.
         """
 
     def on_raw(self, nickname, command, args):
