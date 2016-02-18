@@ -1,7 +1,7 @@
 shellbot
 ========
 
-Version 0.2.7
+Version 0.2.8
 
 **shellbot** is an [IRC bot] that runs shell commands.
 For example,
@@ -43,6 +43,10 @@ setpgrp().*
 What's new
 ----------
 
+Version 0.2.8:
+
+* Updated pyrcb.
+
 Version 0.2.7:
 
 * Fixed an issue with the ``--path`` option.
@@ -51,7 +55,7 @@ Version 0.2.6:
 
 * Fixed a bug where invalid characters in command output could crash shelldon.
 
-Version 0.2:
+Version 0.2.x:
 
 * Fixed an issue with command timeouts that allowed processes to take up too
   much time.

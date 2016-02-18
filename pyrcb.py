@@ -28,7 +28,7 @@ import sys
 import threading
 import time
 
-__version__ = "1.10.0"
+__version__ = "1.10.1"
 
 # ustr is unicode in Python 2 (because of unicode_literals)
 # and str in Python 3.
@@ -789,11 +789,11 @@ class IRCBot(object):
     def close_socket(self):
         try:
             self.socket.shutdown(socket.SHUT_RDWR)
-            self.socket.close()
         except socket.error as e:
             if not catch_socket_error(e):
                 raise
         finally:
+            self.socket.close()
             self.alive = False
             self.delay_event.set()
 
