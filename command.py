@@ -70,6 +70,7 @@ class CommandRunner:
             if not data:
                 break
             output += data
+        selector.close()
         return output
 
     def run(self, command):
