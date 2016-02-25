@@ -1,7 +1,7 @@
 shellbot
 ========
 
-Version 0.2.9
+Version 0.2.10
 
 **shellbot** is an [IRC bot] that runs shell commands.
 For example,
@@ -35,13 +35,17 @@ By default, IRC users can kill shellbot by running ``!$ kill <shellbot-proc>``.
 To prevent this, start shellbot as root and add the option ``-u
 <shellbot-user>``.
 
-*Disclaimer: If not done properly, running shellbot can be dangerous! You
+*Warning: If not done properly, running shellbot can be dangerous! You
 should set (among other precautions) process limits to avoid fork bombs. Be
 aware that users can start long-running processes with calls to setsid() or
 setpgrp().*
 
 What's new
 ----------
+
+Version 0.2.10:
+
+* Fixed an issue with unclosed resources; minor code improvements.
 
 Version 0.2.8-0.2.9:
 
@@ -51,12 +55,9 @@ Version 0.2.7:
 
 * Fixed an issue with the ``--path`` option.
 
-Version 0.2.6:
-
-* Fixed a bug where invalid characters in command output could crash shelldon.
-
 Version 0.2.x:
 
+* Fixed a bug where invalid characters in command output could crash shelldon.
 * Fixed an issue with command timeouts that allowed processes to take up too
   much time.
 * Freezes/crashes no longer occur when running commands with largs amounts of
