@@ -163,8 +163,8 @@ def start(bot, args, password):
     print("Disconnected from server.")
 
 
-def main():
-    args = docopt(__doc__, version=__version__)
+def main(argv):
+    args = docopt(__doc__, argv=argv[1:], version=__version__)
     if args["-u"] and os.geteuid() != 0:
         stderr('Must be run as root with "-u".')
         return
@@ -191,4 +191,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv)
