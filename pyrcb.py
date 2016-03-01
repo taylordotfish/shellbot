@@ -28,7 +28,7 @@ import sys
 import threading
 import time
 
-__version__ = "1.10.2"
+__version__ = "1.11.0"
 
 # ustr is unicode in Python 2 (because of unicode_literals)
 # and str in Python 3.
@@ -130,16 +130,24 @@ class IRCBot(object):
         """
         self.send_raw("PASS", [password])
 
-    def register(self, nickname, realname=None):
+    def register(self, nickname, realname=None, username=None):
         """Registers with the server. (``USER`` and ``NICK`` commands.)
+
+        If ``nickname`` contains non-alphanumeric characters, it may be
+        necessary to provide a separate username (see the ``username``
+        parameter).
 
         :param str nickname: The nickname to use. A `ValueError` is raised if
           the nickname is already in use.
         :param str realname: The real name to use. If not specified,
           ``nickname`` will be used.
+        :param str username: The username to use. If not specified,
+          ``nickname`` will be used.
         """
+        realname = realname or nickname
+        username = username or nickname
         self.nickname = IStr(nickname)
-        self.send_raw("USER", [nickname, "8", "*", realname or nickname])
+        self.send_raw("USER", [username, "8", "*", realname])
         self.send_raw("NICK", [nickname])
         while not self.is_registered:
             line = self.readline()
@@ -714,9 +722,9 @@ class IRCBot(object):
 
     # Replaces a nickname in all joined channels' nicklists.
     def replace_nickname(self, nickname, new_nickname):
+        if nickname == self.nickname:
+            self.nickname = new_nickname
         for channel in self.channels:
-            if nickname == self.nickname:
-                self.nickname = new_nickname
             nicklist = self.nicklist[channel]
             if nickname in nicklist:
                 nicklist.remove(nickname)
