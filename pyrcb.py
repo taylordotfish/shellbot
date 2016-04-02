@@ -27,8 +27,9 @@ import ssl
 import sys
 import threading
 import time
+import warnings
 
-__version__ = "1.11.0"
+__version__ = "1.12.0"
 
 # ustr is unicode in Python 2 (because of unicode_literals)
 # and str in Python 3.
@@ -70,6 +71,9 @@ class IRCBot(object):
         # consecutive.
         self.consecutive_timeout = 5
 
+        self.close_socket_lock = threading.RLock()
+        self.bg_thread_lock = threading.RLock()
+
         self._first_use = True
         self._init_attributes()
         self._register_events()
@@ -99,6 +103,9 @@ class IRCBot(object):
         self.last_sent = IDefaultDict(lambda: (0, 0))
         self.delay_event = threading.Event()
         self.listen_event = threading.Event()
+
+        with self.bg_thread_lock:
+            self.bg_threads = set()
 
     # Registers event handlers.
     def _register_events(self):
@@ -437,11 +444,46 @@ class IRCBot(object):
             t.daemon = True
             t.start()
 
+    def start_thread(self, target, args=(), kwargs={}, daemon=False,
+                     kill_bot=True):
+        """Runs a function on a separate thread.
+
+        :param callable target: The function to run.
+        :param iterable args: Positional arguments to be passed to ``target``.
+        :param dict kwargs: Keyword arguments to be passed to ``target``.
+        :param bool daemon: If true, the thread started by this method will be
+          a daemon thread. See `threading.Thread`.
+        :param bool kill_bot: If true, the bot will be killed if ``target``
+          raises an exception.
+        :returns: The new thread.
+        """
+        def wrapper(*args, **kwargs):
+            exception = False
+            try:
+                target(*args, **kwargs)
+            except Exception:
+                exception = True
+                raise
+            finally:
+                with self.bg_thread_lock:
+                    if thread not in self.bg_threads:
+                        return
+                    if exception:
+                        self.close_socket()
+                    self.bg_threads -= {thread}
+
+        thread = threading.Thread(target=wrapper, args=args, kwargs=kwargs)
+        thread.daemon = daemon
+        with self.bg_thread_lock:
+            self.bg_threads.add(thread)
+        thread.start()
+        return thread
+
     def listen(self):
         """Listens for incoming messages and calls the appropriate events.
 
-        This method is blocking. Either this method or :meth:`listen_async`
-        should be called after registering and joining channels.
+        This method is blocking and should be called after registering and
+        joining channels.
         """
         try:
             self._listen()
@@ -450,15 +492,25 @@ class IRCBot(object):
             self.listen_event.set()
 
     def listen_async(self, callback=None):
-        """Listens for incoming messages on a separate thread and calls the
+        """.. deprecated:: 1.12.0
+           Instead of running the bot in the background, start threads with
+           :meth:`IRCBot.start_thread` and call :meth:`IRCBot.listen` on the
+           main thread.
+
+        Listens for incoming messages on a separate thread and calls the
         appropriate events.
 
-        This method is non-blocking. Either this method of :meth:`listen`
-        should be called after registering and joining channels.
+        This method is deprecated. See the notice above.
 
         :param callable callback: An optional function to call when connection
           to the server is lost.
         """
+        warnings.warn(
+            "IRCBot.listen_async() is deprecated. Instead of running this bot "
+            "in the background, start threads with IRCBot.start_thread() and "
+            "call IRCBot.listen() on the main thread.",
+            DeprecationWarning)
+
         def target():
             try:
                 self._listen()
@@ -476,12 +528,11 @@ class IRCBot(object):
         """Blocks until connection to the server is lost, or until the
         operation times out if a timeout is given.
 
-        This can be useful with :meth:`listen_async` to keep the program alive
-        if there is nothing more to do on the main thread.
+        This can be useful in methods started by :meth:`IRCBot.start_thread`.
 
         Using this function with a ``timeout`` parameter is a better
         alternative to :func:`time.sleep`, since it will return as soon as the
-        bot loses connection, so the program can respond appropriately or end.
+        bot loses connection, so threads can respond appropriately or end.
 
         :param float timeout: A timeout for the operation in seconds.
         :returns: `True` if the method returned because the bot lost connection
@@ -730,6 +781,8 @@ class IRCBot(object):
                 nicklist.remove(nickname)
                 nicklist.append(IStr(new_nickname))
 
+    # Gets the maximum number of bytes the trailing argument of
+    # an IRC message can be without possibly being cut off.
     def safe_length(self, *args):
         # :<nickname>!<user>@<host>
         # <user> commonly has a 10-character maximum
@@ -795,6 +848,13 @@ class IRCBot(object):
 
     # Closes the socket.
     def close_socket(self):
+        with self.close_socket_lock:
+            if self.alive:
+                self._close_socket()
+
+    # Actually closes the socket; called by close_socket()
+    # once it acquires the lock.
+    def _close_socket(self):
         try:
             self.socket.shutdown(socket.SHUT_RDWR)
         except socket.error as e:
