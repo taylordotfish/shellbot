@@ -26,10 +26,11 @@ import socket
 import ssl
 import sys
 import threading
+import traceback
 import time
 import warnings
 
-__version__ = "1.12.0"
+__version__ = "1.12.1"
 
 # ustr is unicode in Python 2 (because of unicode_literals)
 # and str in Python 3.
@@ -463,14 +464,15 @@ class IRCBot(object):
                 target(*args, **kwargs)
             except Exception:
                 exception = True
-                raise
-            finally:
-                with self.bg_thread_lock:
-                    if thread not in self.bg_threads:
-                        return
-                    if exception:
-                        self.close_socket()
-                    self.bg_threads -= {thread}
+                print("Exception in thread {0}:\n{1}".format(
+                    threading.current_thread().name, traceback.format_exc()),
+                    file=sys.stderr)
+            with self.bg_thread_lock:
+                if thread not in self.bg_threads:
+                    return
+                if exception:
+                    self.close_socket()
+                self.bg_threads.remove(thread)
 
         thread = threading.Thread(target=wrapper, args=args, kwargs=kwargs)
         thread.daemon = daemon
@@ -514,6 +516,10 @@ class IRCBot(object):
         def target():
             try:
                 self._listen()
+            except Exception:
+                print("Exception in thread {0}:\n{1}".format(
+                    threading.current_thread().name, traceback.format_exc()),
+                    file=sys.stderr)
             finally:
                 self.close_socket()
                 if callback:
