@@ -52,7 +52,7 @@ import re
 import sys
 import threading
 
-__version__ = "0.2.13"
+__version__ = "0.2.14"
 
 # If modified, replace the source URL with one to the modified version.
 HELP_MESSAGE = """\
@@ -142,7 +142,7 @@ def replace_tabs(string):
 
 
 def stderr(*args, **kwargs):
-    print(*args, **kwargs, file=sys.stderr)
+    print(*args, file=sys.stderr, **kwargs)
 
 
 def log(*args, **kwargs):
