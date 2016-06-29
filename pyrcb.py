@@ -30,7 +30,7 @@ import traceback
 import time
 import warnings
 
-__version__ = "1.12.1"
+__version__ = "1.13.0"
 
 # ustr is unicode in Python 2 (because of unicode_literals)
 # and str in Python 3.
@@ -91,9 +91,8 @@ class IRCBot(object):
         self.nickname = None
         self.channels = []
 
-        self._names_buffer = IDefaultDict(list)
-        self.old_nicklist = IDefaultDict(list)
-        self.nicklist = IDefaultDict(list)
+        self._names_buffer = IDefaultDict(IDefaultDict)
+        self.nicklist = IDefaultDict(IDefaultDict)
 
         # Buffer of delayed messages. Stores tuples of the time
         # to be sent and the message text.
@@ -116,9 +115,10 @@ class IRCBot(object):
         self.register_event(self._on_part, "PART")
         self.register_event(self._on_quit, "QUIT")
         self.register_event(self._on_kick, "KICK")
-        self.register_event(self._on_nick, "NICK")
         self.register_event(self._on_message, "PRIVMSG")
         self.register_event(self._on_notice, "NOTICE")
+        self.register_event(self._on_nick, "NICK")
+        self.register_event(self._on_mode, "MODE")
         self.register_event(self._on_353_namreply, "353")
         self.register_event(self._on_366_endofnames, "366")
         self.register_event(self._on_433_nicknameinuse, "433")
@@ -299,18 +299,34 @@ class IRCBot(object):
         self.replace_nickname(nickname, new_nickname)
         self.on_nick(nickname, new_nickname)
 
+    def _on_mode(self, sender, channel, modes, *names):
+        if not names:
+            return
+        nicklist = self.nicklist[channel]
+        index = 0
+        for char in modes:
+            if char in "+-":
+                plus = char == "+"
+                continue
+            nickname = names[index]
+            if char == "v":
+                nicklist[nickname] = nicklist[nickname].replace(is_voiced=plus)
+            elif char == "o":
+                nicklist[nickname] = nicklist[nickname].replace(is_op=plus)
+            index += 1
+
     def _on_353_namreply(self, server, target, chan_type, channel, names):
         for name in names.split():
             is_op = name.startswith("@")
             is_voiced = name.startswith("+")
-            name = IStr(name.lstrip("@+"))
-            name.is_op, name.is_voiced = is_op, is_voiced
-            self._names_buffer[channel].append(name)
+            name = name.lstrip("@+")
+            vo_info = VoiceOpInfo(name, is_voiced=is_voiced, is_op=is_op)
+            self._names_buffer[channel][name] = vo_info
 
     def _on_366_endofnames(self, server, target, channel, *args):
         self.nicklist.update(self._names_buffer)
         for chan, names in self._names_buffer.items():
-            self.on_names(chan, names)
+            self.on_names(chan, list(names.values()))
         if channel not in self._names_buffer:
             self.on_names(IStr(channel), [])
         self._names_buffer.clear()
@@ -322,14 +338,14 @@ class IRCBot(object):
     def on_join(self, nickname, channel):
         """Called when a user joins a channel. (``JOIN`` command)
 
-        :param Nickname nickname: The nickname of the user.
+        :param UserHostInfo nickname: The nickname of the user.
         :param IStr channel: The channel being joined.
         """
 
     def on_part(self, nickname, channel, message):
         """Called when a user leaves a channel. (``PART`` command)
 
-        :param Nickname nickname: The nickname of the user.
+        :param UserHostInfo nickname: The nickname of the user.
         :param IStr channel: The channel being left.
         :param str message: The part message.
         """
@@ -337,7 +353,7 @@ class IRCBot(object):
     def on_quit(self, nickname, message, channels):
         """Called when a user disconnects from the server. (``QUIT`` command)
 
-        :param Nickname nickname: The nickname of the user.
+        :param UserHostInfo nickname: The nickname of the user.
         :param str message: The quit message.
         :param list channels: A list of channels the user was in.
         """
@@ -345,7 +361,7 @@ class IRCBot(object):
     def on_kick(self, nickname, channel, target, message):
         """Called when a user is kicked from a channel. (``KICK`` command)
 
-        :param Nickname nickname: The nickname of the user that is kicking
+        :param UserHostInfo nickname: The nickname of the user that is kicking
           someone.
         :param IStr channel: The channel someone is being kicked from.
         :param IStr target: The nickname of the user being kicked. Check if
@@ -357,7 +373,7 @@ class IRCBot(object):
         """Called when a message is received. (``PRIVMSG`` command)
 
         :param str message: The text of the message.
-        :param Nickname nickname: The nickname of the user that sent the
+        :param UserHostInfo nickname: The nickname of the user that sent the
           message.
         :param IStr channel: The channel the message is in. If sent in a
           private query, this is `None`.
@@ -369,7 +385,7 @@ class IRCBot(object):
         """Called when a notice is received. (``NOTICE`` command)
 
         :param str message: The text of the notice.
-        :param Nickname nickname: The nickname of the user that sent the
+        :param UserHostInfo nickname: The nickname of the user that sent the
           notice.
         :param IStr channel: The channel the notice is in. If sent in a private
           query, this is `None`.
@@ -380,7 +396,7 @@ class IRCBot(object):
     def on_nick(self, nickname, new_nickname):
         """Called when a user changes nicknames. (``NICK`` command)
 
-        :param Nickname nickname: The user's old nickname.
+        :param UserHostInfo nickname: The user's old nickname.
         :param IStr new_nickname: The user's new nickname.
         """
 
@@ -389,17 +405,15 @@ class IRCBot(object):
 
         :param IStr channel: The channel that the list of users describes.
         :param list names: A list of nicknames of users in the channel.
-          Nicknames are of type `IStr`, but have two additional boolean
-          attributes: ``is_voiced`` and ``is_op``, which specify whether or not
-          each user is voiced or is a channel operator.
+          Nicknames are of type `VoiceOpInfo`.
         """
 
     def on_raw(self, nickname, command, args):
         """Called when any IRC message is received. It is usually better to use
         :meth:`~IRCBot.register_event` instead of this method.
 
-        :param Nickname nickname: The nickname of the user (or the server in
-          some cases) that sent the message.
+        :param UserHostInfo nickname: The nickname of the user (or the server
+          in some cases) that sent the message.
         :param IStr command: The command (or numeric reply) received.
         :param list args: A list of arguments to the command. Arguments are of
           type `str`.
@@ -554,10 +568,10 @@ class IRCBot(object):
 
             function(self, nickname[, arg1, arg2, arg3...])
 
-        ``nickname`` (type `Nickname`, a subclass of `IStr`) is the nickname of
-        the user from whom the IRC message/command originated. When handling
-        numeric replies, it may be more appropriate to name this parameter
-        "server".
+        ``nickname`` (type `UserHostInfo`, a subclass of `IStr`) is the
+        nickname of the user from whom the IRC message/command originated. When
+        handling numeric replies, it may be more appropriate to name this
+        parameter "server".
 
         Optional parameters after ``nickname`` represent arguments to the IRC
         command. These are of type `str`, not `IStr`, so if any of the
@@ -567,7 +581,8 @@ class IRCBot(object):
         If the number of IRC arguments received is less than the number
         ``function`` accepts, the remaining function arguments will be set to
         `None`.  This ensures that IRC commands with an optional last argument
-        will be handled correctly.
+        will be handled correctly. You can also use ``*args`` to capture a
+        variable number of arguments.
 
         Multiple events can be registered for the same IRC command, but is
         usually isn't necessary to do this.
@@ -606,14 +621,14 @@ class IRCBot(object):
         """Splits a string into pieces that will take up no more than the
         specified number of bytes when encoded as UTF-8.
 
-        IRC messages are limited to 512 bytes, so sometimes it is necessary to
+        IRC messages are limited to 512 bytes, so it is sometimes necessary to
         split longer messages. This method splits strings based on how many
         bytes, rather than characters, they take up, keeping multi-byte
         characters intact. For example::
 
             >>> IRCBot.split_string("This is a test§§§§", 8)
             ["This is", "a", "test§§", "§§"]
-            >>> IRCBot.split_string("This is a test§§§§", 8, whitespace=False)
+            >>> IRCBot.split_string("This is a test§§§§", 8, nobreak=False)
             ["This is ", "a test§", "§§§"]
             >>> IRCBot.split_string("This is a test§§§§", 8, once=True)
             ["This is", "a test§§§§"]
@@ -700,7 +715,7 @@ class IRCBot(object):
             (?:\ :?(.*))?  # Trailing argument
             """, message, re.VERBOSE)
         nick, user, host, cmd, args, trailing = match.groups("")
-        nick = Nickname(nick, username=user, hostname=host)
+        nick = UserHostInfo(nick, username=user, hostname=host)
         cmd = IStr(cmd)
         args = args.split()
         if trailing:
@@ -759,33 +774,37 @@ class IRCBot(object):
     # Adds a nickname to channels' nicklists and adds channels
     # to the list of channels if this bot is being added.
     def add_nickname(self, nickname, channels):
+        nickname = IStr(nickname)
         for channel in channels:
             if nickname == self.nickname:
                 self.channels.append(IStr(channel))
-            self.nicklist[channel].append(IStr(nickname))
+            vo_info = VoiceOpInfo(nickname, is_voiced=False, is_op=False)
+            self.nicklist[channel][nickname] = vo_info
 
     # Removes a nickname from channels' nicklists and removes channels
     # from the list of channels if this bot is being removed.
     def remove_nickname(self, nickname, channels):
-        removed_channels = []
+        removed_channels = ISet()
         pairs = [(c, self.nicklist[c]) for c in channels]
         pairs = [(c, n) for c, n in pairs if nickname in n]
         for channel, nicklist in pairs:
             if nickname == self.nickname and channel in self.channels:
                 self.channels.remove(channel)
-            nicklist.remove(nickname)
-            removed_channels.append(channel)
+            nicklist.pop(nickname, None)
+            removed_channels.add(channel)
         return removed_channels
 
     # Replaces a nickname in all joined channels' nicklists.
     def replace_nickname(self, nickname, new_nickname):
+        new_nickname = IStr(new_nickname)
         if nickname == self.nickname:
             self.nickname = new_nickname
         for channel in self.channels:
             nicklist = self.nicklist[channel]
             if nickname in nicklist:
-                nicklist.remove(nickname)
-                nicklist.append(IStr(new_nickname))
+                vo_info = nicklist[nickname].replace(nickname=new_nickname)
+                nicklist.pop(nickname, None)
+                nicklist[new_nickname] = vo_info
 
     # Gets the maximum number of bytes the trailing argument of
     # an IRC message can be without possibly being cut off.
@@ -795,7 +814,7 @@ class IRCBot(object):
         # <host> is 63 characters maximum
         mask = len(":" + self.nickname + "!") + 10 + len("@") + 63
         msg = mask + len(" " + " ".join(args) + " :\r\n")
-        # IRC messages are limited to 512 characters.
+        # IRC messages are limited to 512 bytes.
         return 512 - msg
 
     # Adds a delayed message, or sends the message if delays are off.
@@ -940,7 +959,7 @@ def safe_print(string, file=sys.stdout):
 def istr_methods(cls):
     def get_method(name):
         def method(self, string, *args, **kwargs):
-            if isinstance(string, (str, type(""))):
+            if isinstance(string, (str, ustr)):
                 string = IStr.make_lower(string)
             return getattr(self._lower, name)(string, *args, **kwargs)
         return method
@@ -957,13 +976,50 @@ def istr_methods(cls):
 def idefaultdict_methods(cls):
     def get_method(name):
         def method(self, key, *args, **kwargs):
-            if isinstance(key, (str, type(""))):
+            if not isinstance(key, IStr) and isinstance(key, (str, ustr)):
                 key = IStr(key)
             return getattr(super(cls, self), name)(key, *args, **kwargs)
         return method
 
     for name in ["get", "__getitem__", "__setitem__", "__contains__"]:
         setattr(cls, name, get_method(name))
+    return cls
+
+
+# Decorator to implement case-insensitive methods for ISet.
+def iset_methods(cls):
+    def get_item_method(name):
+        def method(self, item, *args, **kwargs):
+            if not isinstance(item, IStr) and isinstance(item, (str, ustr)):
+                item = IStr(item)
+            return getattr(super(cls, self), name)(item, *args, **kwargs)
+        return method
+
+    def get_operation_method(name):
+        def method(self, _set, *args, **kwargs):
+            if not isinstance(_set, ISet):
+                _set = ISet(_set)
+            result = getattr(super(cls, self), name)(_set, *args, **kwargs)
+            if isinstance(result, set) and not isinstance(result, ISet):
+                result = ISet(result)
+            return result
+        return method
+
+    operators = [
+        "sub", "isub", "and", "iand", "le", "lt", "ge", "gt", "xor", "ixor",
+        "or", "ior", "eq", "ne"]
+    operation_methods = [
+        "difference", "difference_update", "intersection",
+        "intersection_update", "isdisjoint", "issubset", "issuperset",
+        "symmetric_difference", "symmetric_difference_update", "union",
+        "update"]
+    for name in operators:
+        name = "__{0}__".format(name)
+        setattr(cls, name, get_operation_method(name))
+    for name in operation_methods:
+        setattr(cls, name, get_operation_method(name))
+    for name in ["add", "discard", "remove", "__contains__"]:
+        setattr(cls, name, get_item_method(name))
     return cls
 
 
@@ -1010,7 +1066,8 @@ class IStr(ustr):
         return hash(self._lower)
 
     def __repr__(self):
-        return "IStr({0})".format(super(IStr, self).__repr__())
+        name = type(self).__name__
+        return "{0}({1})".format(name, super(IStr, self).__repr__())
 
     def lower(self):
         return self._lower
@@ -1041,7 +1098,7 @@ class IDefaultDict(OrderedDict):
     rules`_.
 
     Key equality is case-insensitive. Keys are converted to `IStr` upon
-    assignment and retrieval. Keys should be only of type `str` or `IStr`.
+    assignment (as long as they are instances of `str` or `unicode`).
 
     This class is actually a subclass of `~collections.OrderedDict`, so keys
     are kept in the order they were added in, but the functionality of
@@ -1051,6 +1108,10 @@ class IDefaultDict(OrderedDict):
     .. _IRC case rules: https://tools.ietf.org/html/rfc2812#section-2.2
     """
     def __init__(self, default_factory=None, *args, **kwargs):
+        factory_valid = (
+            default_factory is None or hasattr(default_factory, "__call__"))
+        if not factory_valid:
+            raise TypeError("First argument must be callable or None.")
         super(IDefaultDict, self).__init__(*args, **kwargs)
         self.default_factory = default_factory
 
@@ -1061,9 +1122,32 @@ class IDefaultDict(OrderedDict):
         return self[key]
 
 
-class Nickname(IStr):
+@iset_methods
+class ISet(set):
+    """A case-insensitive `set` class based on `IRC case rules`_.
+
+    Item equality is case-insensitive. Items are converted to `IStr` during all
+    operations. For example::
+
+        >>> x = ISet(["TEST"])
+        >>> x.add("another_test")
+        >>> x
+        ISet({IStr('TEST'), IStr('another_test')})
+        >>> x - {"test"}
+        ISet({IStr('another_test')})
+
+    .. _IRC case rules: https://tools.ietf.org/html/rfc2812#section-2.2
+    """
+    def __init__(self, iterable=None):
+        if iterable is not None:
+            for item in iterable:
+                self.add(item)
+
+
+class UserHostInfo(IStr):
     """A subclass of `IStr` that represents a nickname and also stores the
-    associated user's username and hostname.
+    associated user's username and hostname. This class behaves just like
+    `IStr`; it simply has extra attributes.
 
     In `IRCBot` events, nicknames are sometimes of this type (when the command
     originated from the associated user). See individual methods' descriptions
@@ -1074,14 +1158,64 @@ class Nickname(IStr):
     def __new__(cls, *args, **kwargs):
         kwargs.pop("username", None)
         kwargs.pop("hostname", None)
-        return super(Nickname, cls).__new__(cls, *args, **kwargs)
+        return super(UserHostInfo, cls).__new__(cls, *args, **kwargs)
 
     def __init__(self, *args, **kwargs):
         try:
-            self.username = kwargs.pop("username")
-            self.hostname = kwargs.pop("hostname")
-        except KeyError:
+            self._username = kwargs.pop("username")
+            self._hostname = kwargs.pop("hostname")
+        except KeyError as e:
             raise TypeError(
-                "Keyword-only arguments 'username' "
-                "and 'hostname' are required.")
-        super(Nickname, self).__init__(*args, **kwargs)
+                "Keyword-only argument '{0}' is required.".format(e.args[0]))
+        super(UserHostInfo, self).__init__(*args, **kwargs)
+
+    @property
+    def username(self):
+        return self._username
+
+    @property
+    def hostname(self):
+        return self._hostname
+
+# Deprecated alias for UserHostInfo; do not use.
+Nickname = UserHostInfo
+
+
+class VoiceOpInfo(IStr):
+    """A subclass of `IStr` that represents a nickname and also stores the
+    associated user's voice and operator status. This class behaves just like
+    `IStr`; it simply has extra attributes.
+
+    Nicknames in `IRCBot.nicklist` are of this type, so you can easily check if
+    a user is voiced or is a channel operator. See `IRCBot.nicklist` for more
+    information.
+
+    It shouldn't be necessary to create objects of this type.
+    """
+    def __new__(cls, *args, **kwargs):
+        kwargs.pop("is_voiced", None)
+        kwargs.pop("is_op", None)
+        return super(VoiceOpInfo, cls).__new__(cls, *args, **kwargs)
+
+    def __init__(self, *args, **kwargs):
+        try:
+            self._is_voiced = kwargs.pop("is_voiced")
+            self._is_op = kwargs.pop("is_op")
+        except KeyError as e:
+            raise TypeError(
+                "Keyword-only argument '{0}' is required.".format(e.args[0]))
+        super(VoiceOpInfo, self).__init__(*args, **kwargs)
+
+    @property
+    def is_voiced(self):
+        return self._is_voiced
+
+    @property
+    def is_op(self):
+        return self._is_op
+
+    def replace(self, nickname=None, is_voiced=None, is_op=None):
+        nickname = self if nickname is None else nickname
+        is_voiced = self.is_voiced if is_voiced is None else is_voiced
+        is_op = self.is_op if is_op is None else is_op
+        return VoiceOpInfo(nickname, is_voiced=is_voiced, is_op=is_op)
