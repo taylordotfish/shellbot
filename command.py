@@ -48,13 +48,17 @@ class CommandRunner:
         self.state = 0
 
     def get_subprocess(self, command):
+        env = {
+            "PATH": self.path,
+            "LANG": "en_US.UTF-8",
+        }
         preexec = None
         if self.user:
             info = pwd.getpwnam(self.user)
             preexec = setid(info.pw_uid, info.pw_gid)
         return Popen(
             self.shell + [command], stdin=PIPE, stdout=PIPE, stderr=STDOUT,
-            cwd=self.cwd, env={"PATH": self.path}, preexec_fn=preexec,
+            cwd=self.cwd, env=env, preexec_fn=preexec,
             start_new_session=True)
 
     def get_output(self, process):
