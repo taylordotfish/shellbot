@@ -111,7 +111,7 @@ class CommandRunner:
                 if state == self.state:
                     output = self.run(command)
                 if state == self.state:
-                    callback(*args, output)
+                    callback(*(args + [output]))
         self.stop = False
 
 

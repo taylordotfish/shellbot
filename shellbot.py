@@ -52,7 +52,7 @@ import re
 import sys
 import threading
 
-__version__ = "0.2.16"
+__version__ = "0.2.17"
 
 # If modified, replace the source URL with one to the modified version.
 HELP_MESSAGE = """\
