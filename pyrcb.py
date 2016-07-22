@@ -30,7 +30,7 @@ import traceback
 import time
 import warnings
 
-__version__ = "1.13.0"
+__version__ = "1.13.1"
 
 # ustr is unicode in Python 2 (because of unicode_literals)
 # and str in Python 3.
@@ -316,10 +316,13 @@ class IRCBot(object):
             index += 1
 
     def _on_353_namreply(self, server, target, chan_type, channel, names):
+        nick_chars = r"a-zA-Z0-9-" + re.escape(r"[]\`_^{|}")
+        expr = "([^{}]*)(.*)".format(nick_chars)
         for name in names.split():
-            is_op = name.startswith("@")
-            is_voiced = name.startswith("+")
-            name = name.lstrip("@+")
+            match = re.match(expr, name)
+            prefixes, name = match.groups()
+            is_op = "@" in prefixes
+            is_voiced = "+" in prefixes
             vo_info = VoiceOpInfo(name, is_voiced=is_voiced, is_op=is_op)
             self._names_buffer[channel][name] = vo_info
 
@@ -424,7 +427,7 @@ class IRCBot(object):
     # ====================
 
     def connect(self, hostname, port, use_ssl=False, ca_certs=None,
-                verify_ssl=True):
+                verify_ssl=True, send_cap=True):
         """Connects to an IRC server.
 
         SSL/TLS support requires at least Python 3.2 or Python 2.7.9. On
@@ -440,6 +443,8 @@ class IRCBot(object):
           be loaded instead.
         :param bool verify_ssl: Whether or not to verify the server's SSL/TLS
           certificate and hostname.
+        :param bool send_cap: If true, the bot will request some IRCv3 features
+          upon connection using the ``CAP`` command.
         """
         if not self._first_use:
             self._init_attributes()
@@ -458,6 +463,10 @@ class IRCBot(object):
             t = threading.Thread(target=self.delay_loop)
             t.daemon = True
             t.start()
+
+        if send_cap:
+            self.send_raw("CAP", ["REQ", "multi-prefix"])
+            self.send_raw("CAP", ["END"])
 
     def start_thread(self, target, args=(), kwargs={}, daemon=False,
                      kill_bot=True):
@@ -981,7 +990,10 @@ def idefaultdict_methods(cls):
             return getattr(super(cls, self), name)(key, *args, **kwargs)
         return method
 
-    for name in ["get", "__getitem__", "__setitem__", "__contains__"]:
+    for name in ["get", "pop"]:
+        setattr(cls, name, get_method(name))
+    for name in ["getitem", "setitem", "delitem", "contains"]:
+        name = "__{0}__".format(name)
         setattr(cls, name, get_method(name))
     return cls
 
