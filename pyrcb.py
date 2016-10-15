@@ -6,13 +6,20 @@
 # published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
+# All comments (lines beginning with "#") and docstrings (text
+# enclosed in triple quotation marks) are also licensed under the
+# GNU Free Documentation License, Version 1.3 or any later version
+# published by the Free Software Foundation; with no Invariant
+# Sections, no Front-Cover Texts, and no Back-Cover Texts.
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU Lesser General Public License for more details.
 #
-# You should have received a copy of the GNU Lesser General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# You should have received a copy of the GNU Lesser General Public
+# License and the GNU Free Documentation License along with
+# this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from __future__ import print_function
 from __future__ import unicode_literals
@@ -30,7 +37,7 @@ import traceback
 import time
 import warnings
 
-__version__ = "1.13.1"
+__version__ = "1.14.0"
 
 # ustr is unicode in Python 2 (because of unicode_literals)
 # and str in Python 3.
@@ -90,6 +97,8 @@ class IRCBot(object):
         self.is_registered = False
         self.nickname = None
         self.channels = []
+        self._prefix_map = dict(zip("ov", "@+"))
+        self._chanmodes = ("", "", "", "")
 
         self._names_buffer = IDefaultDict(IDefaultDict)
         self.nicklist = IDefaultDict(IDefaultDict)
@@ -119,6 +128,7 @@ class IRCBot(object):
         self.register_event(self._on_notice, "NOTICE")
         self.register_event(self._on_nick, "NICK")
         self.register_event(self._on_mode, "MODE")
+        self.register_event(self._on_005_isupport, "005")
         self.register_event(self._on_353_namreply, "353")
         self.register_event(self._on_366_endofnames, "366")
         self.register_event(self._on_433_nicknameinuse, "433")
@@ -244,19 +254,19 @@ class IRCBot(object):
         :param str command: The command to send.
         :param list args: A list of arguments to the command.
         """
-        self.writeline(IRCBot.format(command, args))
+        self.writeline(self.format(command, args))
 
     def _privmsg_or_notice(self, target, message, split, nobreak, notice):
         messages = [message]
         if split:
             bytelen = self.safe_message_length(target, notice=notice)
             try:
-                messages = IRCBot.split_string(message, bytelen, nobreak)
+                messages = self.split_string(message, bytelen, nobreak)
             except ValueError:
                 pass
         command = ["PRIVMSG", "NOTICE"][notice]
         for msg in messages:
-            self.add_delayed(target, command, [target, msg])
+            self._add_delayed(target, command, [target, msg])
 
     # ==================
     # IRC event handlers
@@ -299,31 +309,44 @@ class IRCBot(object):
         self.replace_nickname(nickname, new_nickname)
         self.on_nick(nickname, new_nickname)
 
-    def _on_mode(self, sender, channel, modes, *names):
-        if not names:
-            return
+    def _on_mode(self, sender, channel, modes, *args):
         nicklist = self.nicklist[channel]
         index = 0
         for char in modes:
             if char in "+-":
                 plus = char == "+"
                 continue
-            nickname = names[index]
-            if char == "v":
-                nicklist[nickname] = nicklist[nickname].replace(is_voiced=plus)
-            elif char == "o":
-                nicklist[nickname] = nicklist[nickname].replace(is_op=plus)
-            index += 1
+            if char in self._prefix_map:
+                nick = args[index]
+                vo_info = nicklist[nick]
+                method = vo_info.add_prefix if plus else vo_info.remove_prefix
+                nicklist[nick] = method(self._prefix_map[char])
+            takes_arg = (
+                char in self._prefix_map or
+                char in self._chanmodes[0] or
+                char in self._chanmodes[1] or
+                char in self._chanmodes[2] and plus)
+            if takes_arg:
+                index += 1
+                if index >= len(args):
+                    return
+
+    def _on_005_isupport(self, server, target, *args):
+        for arg in args[:-1]:
+            name, value = arg.split("=", 1)
+            if name == "PREFIX":
+                modes, prefixes = value[1:].split(")", 1)
+                self._prefix_map = dict(zip(modes, prefixes))
+            elif name == "CHANMODES":
+                self._chanmodes = tuple((value + ",,,").split(",")[:4])
 
     def _on_353_namreply(self, server, target, chan_type, channel, names):
         nick_chars = r"a-zA-Z0-9-" + re.escape(r"[]\`_^{|}")
-        expr = "([^{}]*)(.*)".format(nick_chars)
+        expr = r"([^{}]*)(.*)".format(nick_chars)
         for name in names.split():
             match = re.match(expr, name)
             prefixes, name = match.groups()
-            is_op = "@" in prefixes
-            is_voiced = "+" in prefixes
-            vo_info = VoiceOpInfo(name, is_voiced=is_voiced, is_op=is_op)
+            vo_info = VoiceOpInfo(name, prefixes=prefixes)
             self._names_buffer[channel][name] = vo_info
 
     def _on_366_endofnames(self, server, target, channel, *args):
@@ -460,7 +483,7 @@ class IRCBot(object):
 
         self.alive = True
         if self.delay:
-            t = threading.Thread(target=self.delay_loop)
+            t = threading.Thread(target=self._delay_loop)
             t.daemon = True
             t.start()
 
@@ -480,6 +503,7 @@ class IRCBot(object):
         :param bool kill_bot: If true, the bot will be killed if ``target``
           raises an exception.
         :returns: The new thread.
+        :rtype: `threading.Thread`
         """
         def wrapper(*args, **kwargs):
             exception = False
@@ -493,7 +517,7 @@ class IRCBot(object):
             with self.bg_thread_lock:
                 if thread not in self.bg_threads:
                     return
-                if exception:
+                if exception and kill_bot:
                     self.close_socket()
                 self.bg_threads.remove(thread)
 
@@ -566,6 +590,7 @@ class IRCBot(object):
         :param float timeout: A timeout for the operation in seconds.
         :returns: `True` if the method returned because the bot lost connection
           or `False` if the operation timed out.
+        :rtype: `bool`
         """
         return self.listen_event.wait(timeout)
 
@@ -593,14 +618,14 @@ class IRCBot(object):
         will be handled correctly. You can also use ``*args`` to capture a
         variable number of arguments.
 
-        Multiple events can be registered for the same IRC command, but is
+        Multiple events can be registered for the same IRC command, but it
         usually isn't necessary to do this.
 
         :param callable function: The event handler.
         :param str command: The IRC command or numeric reply to listen for.
         """
-        nargs = get_required_args(function)
-        self.events[command].append((function, nargs))
+        nargs, varargs = get_required_args(function)
+        self.events[command].append((function, nargs, varargs))
 
     def safe_message_length(self, target, notice=False):
         """Gets the maximum number of bytes the text of an IRC PRIVMSG (or
@@ -621,12 +646,12 @@ class IRCBot(object):
         """
         return self.safe_length(["PRIVMSG", "NOTICE"][notice], target)
 
-    # ==============
-    # Static methods
-    # ==============
+    # =============
+    # Class methods
+    # =============
 
-    @staticmethod
-    def split_string(string, bytelen, nobreak=True, once=False):
+    @classmethod
+    def split_string(cls, string, bytelen, nobreak=True, once=False):
         """Splits a string into pieces that will take up no more than the
         specified number of bytes when encoded as UTF-8.
 
@@ -660,10 +685,11 @@ class IRCBot(object):
         :param bool once: If true, the string will only be split once. The
           second piece is not guaranteed to be less than ``bytelen``.
         :returns: A list of the split string pieces.
+        :rtype: `list`
         """
         result = []
         rest = string
-        split_func = IRCBot.split_nobreak if nobreak else IRCBot.split_once
+        split_func = cls.split_nobreak if nobreak else cls.split_once
         while not result or (rest and not once):
             split, rest = split_func(rest, bytelen)
             result.append(split)
@@ -671,8 +697,8 @@ class IRCBot(object):
 
     # Splits a string based on the number of bytes it takes
     # up when encoded as UTF-8.
-    @staticmethod
-    def split_once(string, bytelen):
+    @classmethod
+    def split_once(cls, string, bytelen):
         if bytelen <= 0:
             raise ValueError("Number of bytes must be positive.")
         bytestr = string.encode("utf8")
@@ -691,9 +717,9 @@ class IRCBot(object):
     # Like split_once(), but splits only where whitespace occurs to avoid
     # breaking words (unless not possible). If present, once space character
     # between split strings will be removed (similar to WeeChat's behavior).
-    @staticmethod
-    def split_nobreak(string, bytelen):
-        split, rest = IRCBot.split_once(string, bytelen)
+    @classmethod
+    def split_nobreak(cls, string, bytelen):
+        split, rest = cls.split_once(string, bytelen)
         if not rest:
             return (split, rest)
         if not split[-1].isspace() and not rest[0].isspace():
@@ -709,8 +735,8 @@ class IRCBot(object):
         return (split, rest)
 
     # Parses an IRC message.
-    @staticmethod
-    def parse(message):
+    @classmethod
+    def parse(cls, message):
         # Regex to parse IRC messages.
         match = re.match(r"""
             (?::  # Start of prefix
@@ -722,7 +748,7 @@ class IRCBot(object):
             ([^ ]+)  # Command
             ((?:\ [^: ][^ ]*){0,14})  # Arguments
             (?:\ :?(.*))?  # Trailing argument
-            """, message, re.VERBOSE)
+        """, message, re.VERBOSE)
         nick, user, host, cmd, args, trailing = match.groups("")
         nick = UserHostInfo(nick, username=user, hostname=host)
         cmd = IStr(cmd)
@@ -732,8 +758,8 @@ class IRCBot(object):
         return (nick, cmd, args)
 
     # Formats an IRC message.
-    @staticmethod
-    def format(command, args=[]):
+    @classmethod
+    def format(cls, command, args=[]):
         command = ustr(command)
         args = list(map(ustr, args))
         if not all(args + [command]):
@@ -770,13 +796,15 @@ class IRCBot(object):
 
     # Parses an IRC message and calls the appropriate events.
     def _handle(self, message):
-        nickname, command, args = IRCBot.parse(message)
-        for handler, nargs in self.events.get(command, []):
+        nickname, command, args = self.parse(message)
+        for handler, nargs, varargs in self.events.get(command, []):
             handler_args = [nickname] + args
 
             # Fill in any extra arguments with None.
             if len(handler_args) < nargs:
                 handler_args += [None] * (nargs - len(handler_args))
+            if not varargs:
+                handler_args = handler_args[:nargs]
             handler(*handler_args)
         self.on_raw(nickname, command, args)
 
@@ -787,7 +815,7 @@ class IRCBot(object):
         for channel in channels:
             if nickname == self.nickname:
                 self.channels.append(IStr(channel))
-            vo_info = VoiceOpInfo(nickname, is_voiced=False, is_op=False)
+            vo_info = VoiceOpInfo(nickname)
             self.nicklist[channel][nickname] = vo_info
 
     # Removes a nickname from channels' nicklists and removes channels
@@ -827,7 +855,7 @@ class IRCBot(object):
         return 512 - msg
 
     # Adds a delayed message, or sends the message if delays are off.
-    def add_delayed(self, target, command, args):
+    def _add_delayed(self, target, command, args):
         if not self.delay:
             self.send_raw(command, args)
             return
@@ -845,7 +873,7 @@ class IRCBot(object):
         self.delay_event.set()
 
     # Sends delayed messages at the appropriate time.
-    def delay_loop(self):
+    def _delay_loop(self):
         while self.alive:
             self.delay_event.clear()
             if any(self._delay_buffer):
@@ -903,23 +931,29 @@ class IRCBot(object):
 # Gets the number of required positional arguments of a function.
 # Does not include the "self" parameter for bound methods.
 def get_required_args(func):
-    result = 0
     if hasattr(inspect, "signature"):
+        from inspect import Parameter
+        nargs = 0
+        varargs = False
         sig = inspect.signature(func)
         for param in sig.parameters.values():
+            has_default = param.default is not Parameter.empty
             is_positional = param.kind in [
-                inspect.Parameter.POSITIONAL_ONLY,
-                inspect.Parameter.POSITIONAL_OR_KEYWORD]
-            no_default = param.default is inspect.Parameter.empty
-            if is_positional and no_default:
-                result += 1
-        return result
+                Parameter.POSITIONAL_ONLY,
+                Parameter.POSITIONAL_OR_KEYWORD,
+            ]
+            if is_positional and not has_default:
+                nargs += 1
+            elif param.kind == Parameter.VAR_POSITIONAL:
+                varargs = True
+        return (nargs, varargs)
     spec = getattr(inspect, "getfullargspec", inspect.getargspec)(func)
-    result = len(spec.args) - len(spec.defaults or [])
+    nargs = len(spec.args) - len(spec.defaults or [])
+    varargs = spec.varargs is not None
     # Don't include the "self" parameter for bound methods.
     if hasattr(func, "__self__"):
-        result -= 1
-    return result
+        nargs -= 1
+    return (nargs, varargs)
 
 
 # Wraps a plain socket into an SSL one. Attempts to load default CA
@@ -1173,12 +1207,8 @@ class UserHostInfo(IStr):
         return super(UserHostInfo, cls).__new__(cls, *args, **kwargs)
 
     def __init__(self, *args, **kwargs):
-        try:
-            self._username = kwargs.pop("username")
-            self._hostname = kwargs.pop("hostname")
-        except KeyError as e:
-            raise TypeError(
-                "Keyword-only argument '{0}' is required.".format(e.args[0]))
+        self._username = kwargs.pop("username", None)
+        self._hostname = kwargs.pop("hostname", None)
         super(UserHostInfo, self).__init__(*args, **kwargs)
 
     @property
@@ -1195,8 +1225,9 @@ Nickname = UserHostInfo
 
 class VoiceOpInfo(IStr):
     """A subclass of `IStr` that represents a nickname and also stores the
-    associated user's voice and operator status. This class behaves just like
-    `IStr`; it simply has extra attributes.
+    associated user's voice and operator status (as well as the other prefixes
+    they have). This class behaves just like `IStr`; it simply has extra
+    attributes.
 
     Nicknames in `IRCBot.nicklist` are of this type, so you can easily check if
     a user is voiced or is a channel operator. See `IRCBot.nicklist` for more
@@ -1205,29 +1236,57 @@ class VoiceOpInfo(IStr):
     It shouldn't be necessary to create objects of this type.
     """
     def __new__(cls, *args, **kwargs):
-        kwargs.pop("is_voiced", None)
-        kwargs.pop("is_op", None)
+        kwargs.pop("prefixes", None)
         return super(VoiceOpInfo, cls).__new__(cls, *args, **kwargs)
 
     def __init__(self, *args, **kwargs):
-        try:
-            self._is_voiced = kwargs.pop("is_voiced")
-            self._is_op = kwargs.pop("is_op")
-        except KeyError as e:
-            raise TypeError(
-                "Keyword-only argument '{0}' is required.".format(e.args[0]))
+        self._prefixes = frozenset(kwargs.pop("prefixes", ()))
         super(VoiceOpInfo, self).__init__(*args, **kwargs)
 
     @property
     def is_voiced(self):
-        return self._is_voiced
+        """Whether or not this user is voiced.
+        Equivalent to ``.has_prefix("+")``.
+
+        :type: `bool`
+        """
+        return self.has_prefix("+")
 
     @property
     def is_op(self):
-        return self._is_op
+        """Whether or not this user is a channel operator.
+        Equivalent to ``.has_prefix("@")``.
 
-    def replace(self, nickname=None, is_voiced=None, is_op=None):
-        nickname = self if nickname is None else nickname
-        is_voiced = self.is_voiced if is_voiced is None else is_voiced
-        is_op = self.is_op if is_op is None else is_op
-        return VoiceOpInfo(nickname, is_voiced=is_voiced, is_op=is_op)
+        :type: `bool`
+        """
+        return self.has_prefix("@")
+
+    @property
+    def prefixes(self):
+        """This user's prefixes.
+
+        :type: `frozenset`
+        """
+        return self._prefixes
+
+    def has_prefix(self, prefix):
+        """Checks if this user has a certain prefix.
+
+        :param str prefix: The prefix to look for.
+        :returns: Whether or not this user has the prefix.
+        :rtype: `bool`
+        """
+        return prefix in self._prefixes
+
+    def replace(self, **kwargs):
+        nickname = kwargs.pop("nickname", self)
+        kwargs.setdefault("prefixes", self.prefixes)
+        return type(self)(nickname, **kwargs)
+
+    def add_prefix(self, prefix):
+        prefixes = self.prefixes | set(prefix)
+        return self.replace(prefixes=prefixes)
+
+    def remove_prefix(self, prefix):
+        prefixes = self.prefixes - set(prefix)
+        return self.replace(prefixes=prefixes)
