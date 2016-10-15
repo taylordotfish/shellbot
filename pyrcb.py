@@ -37,7 +37,7 @@ import traceback
 import time
 import warnings
 
-__version__ = "1.14.0"
+__version__ = "1.14.1"
 
 # ustr is unicode in Python 2 (because of unicode_literals)
 # and str in Python 3.
@@ -333,7 +333,7 @@ class IRCBot(object):
 
     def _on_005_isupport(self, server, target, *args):
         for arg in args[:-1]:
-            name, value = arg.split("=", 1)
+            name, value, *_ = arg.split("=", 1) + [None]
             if name == "PREFIX":
                 modes, prefixes = value[1:].split(")", 1)
                 self._prefix_map = dict(zip(modes, prefixes))
