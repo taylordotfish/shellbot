@@ -6,20 +6,20 @@
 # published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
-# All comments (lines beginning with "#") and docstrings (text
-# enclosed in triple quotation marks) are also licensed under the
-# GNU Free Documentation License, Version 1.3 or any later version
-# published by the Free Software Foundation; with no Invariant
-# Sections, no Front-Cover Texts, and no Back-Cover Texts.
+# As an additional permission under GNU GPL version 3 section 7, you may
+# distribute non-source forms of comments (lines beginning with "#") and
+# strings (text enclosed in quotation marks) in pyrcb source code without
+# the copy of the GNU GPL normally required by section 4, provided you
+# include a URL through which recipients can obtain a copy of the
+# Corresponding Source and the GPL at no charge.
 #
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU Lesser General Public License for more details.
 #
-# You should have received a copy of the GNU Lesser General Public
-# License and the GNU Free Documentation License along with
-# this program.  If not, see <http://www.gnu.org/licenses/>.
+# You should have received a copy of the GNU Lesser General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from __future__ import print_function
 from __future__ import unicode_literals
@@ -37,7 +37,7 @@ import traceback
 import time
 import warnings
 
-__version__ = "1.14.1"
+__version__ = "1.14.2"
 
 # ustr is unicode in Python 2 (because of unicode_literals)
 # and str in Python 3.
@@ -693,6 +693,8 @@ class IRCBot(object):
         while not result or (rest and not once):
             split, rest = split_func(rest, bytelen)
             result.append(split)
+        if rest:
+            result.append(rest)
         return result
 
     # Splits a string based on the number of bytes it takes
