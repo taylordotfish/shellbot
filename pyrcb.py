@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright (C) 2015-2016 taylor.fish <contact@taylor.fish>
+# Copyright (C) 2015-2017 taylor.fish <contact@taylor.fish>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Lesser General Public License as
@@ -37,7 +37,7 @@ import traceback
 import time
 import warnings
 
-__version__ = "1.14.2"
+__version__ = "1.14.3"
 
 # ustr is unicode in Python 2 (because of unicode_literals)
 # and str in Python 3.
@@ -88,7 +88,7 @@ class IRCBot(object):
 
     # Initializes attributes.
     def _init_attributes(self):
-        self._buffer = ""
+        self._buffer = b""
         self.socket = None
         self.hostname = None
         self.port = None
@@ -333,7 +333,7 @@ class IRCBot(object):
 
     def _on_005_isupport(self, server, target, *args):
         for arg in args[:-1]:
-            name, value, *_ = arg.split("=", 1) + [None]
+            name, value = (arg.split("=", 1) + [None])[:2]
             if name == "PREFIX":
                 modes, prefixes = value[1:].split(")", 1)
                 self._prefix_map = dict(zip(modes, prefixes))
@@ -893,13 +893,14 @@ class IRCBot(object):
 
     # Reads a line from the socket.
     def readline(self):
-        while "\r\n" not in self._buffer:
+        while b"\r\n" not in self._buffer:
             data = self.socket.recv(1024)
             if not data:
                 return
-            self._buffer += data.decode("utf8", "ignore")
+            self._buffer += data
 
-        line, self._buffer = self._buffer.split("\r\n", 1)
+        line_bytes, self._buffer = self._buffer.split(b"\r\n", 1)
+        line = line_bytes.decode("utf8", "ignore")
         if self.debug_print:
             self.print_function(line)
         return line
