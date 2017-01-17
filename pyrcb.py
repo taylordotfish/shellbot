@@ -37,7 +37,7 @@ import traceback
 import time
 import warnings
 
-__version__ = "1.14.3"
+__version__ = "1.14.4"
 
 # ustr is unicode in Python 2 (because of unicode_literals)
 # and str in Python 3.
@@ -209,7 +209,7 @@ class IRCBot(object):
         :param bool split: If true, long messages will be split into multiple
           pieces to avoid truncation. See :meth:`IRCBot.split_string`.
         :param bool nobreak: If true (and ``split`` is true), long messages
-          will be split only where whitespace occurs to avoid breaking words,
+          will be split only where spaces occurs to avoid breaking words,
           unless this is not possible.
         """
         self._privmsg_or_notice(
@@ -224,7 +224,7 @@ class IRCBot(object):
         :param bool split: If true, long messages will be split into multiple
           pieces to avoid truncation. See :meth:`IRCBot.split_string`.
         :param bool nobreak: If true (and ``split`` is true), long messages
-          will be split only where whitespace occurs to avoid breaking words,
+          will be split only where spaces occur to avoid breaking words,
           unless this is not possible.
         """
         self._privmsg_or_notice(
@@ -678,10 +678,9 @@ class IRCBot(object):
         :param str string: The string to split.
         :param int bytelen: The maximum number of bytes string pieces should
           take up when encoded as UTF-8.
-        :param bool nobreak: If true, strings will be split only where
-          whitespace occurs to avoid breaking words, unless this is not
-          possible. If present, one space character will be removed between
-          string pieces.
+        :param bool nobreak: If true, strings will be split only where spaces
+          occur to avoid breaking words, unless this is not possible. If
+          present, one space character will be removed between string pieces.
         :param bool once: If true, the string will only be split once. The
           second piece is not guaranteed to be less than ``bytelen``.
         :returns: A list of the split string pieces.
@@ -716,23 +715,24 @@ class IRCBot(object):
             split, rest = split[:start], split[start:] + rest
         return (split.decode("utf8"), rest.decode("utf8"))
 
-    # Like split_once(), but splits only where whitespace occurs to avoid
-    # breaking words (unless not possible). If present, once space character
-    # between split strings will be removed (similar to WeeChat's behavior).
+    # Like split_once(), but splits only where spaces occur to avoid breaking
+    # words (unless not possible). If present, once space character between
+    # split strings will be removed (similar to WeeChat's behavior).
     @classmethod
     def split_nobreak(cls, string, bytelen):
         split, rest = cls.split_once(string, bytelen)
         if not rest:
             return (split, rest)
-        if not split[-1].isspace() and not rest[0].isspace():
+        if not split[-1] == " " and not rest[0] == " ":
             chars = reversed(list(enumerate(split)))
-            space = next((i for i, c in chars if c.isspace()), -1)
+            space = next((i for i, c in chars if c == " "), -1)
             if space >= 0:
-                split, rest = split[:space], split[space:] + rest
+                split, rest = split[:space + 1], split[space + 1:] + rest
         # If present, remove one space character between strings.
         if rest[0] == " ":
             rest = rest[1:]
-        elif split[-1] == " ":
+        elif split[-1] == " " and split.strip(" "):
+            # Remove a space if one occurs after a non-space character.
             split = split[:-1]
         return (split, rest)
 
