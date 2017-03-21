@@ -37,7 +37,7 @@ import traceback
 import time
 import warnings
 
-__version__ = "1.14.4"
+__version__ = "1.14.5"
 
 # ustr is unicode in Python 2 (because of unicode_literals)
 # and str in Python 3.
@@ -460,7 +460,10 @@ class IRCBot(object):
 
         :param str hostname: The hostname of the IRC server.
         :param int port: The port of the IRC server.
-        :param bool use_ssl: Whether or not to use SSL/TLS.
+        :param bool use_ssl: Whether or not to use SSL/TLS. This can also be
+          an `~ssl.SSLContext` object, in which case it will be used instead
+          of a default `~ssl.SSLContext`, and the ``ca_certs`` and
+          ``verify_ssl`` parameters will be ignored.
         :param str ca_certs: Optional path to a list of trusted CA
           certificates. If omitted, the system's default CA certificates will
           be loaded instead.
@@ -478,8 +481,9 @@ class IRCBot(object):
         self.socket = socket.create_connection((hostname, port))
 
         if use_ssl:
+            context = use_ssl if isinstance(use_ssl, ssl.SSLContext) else None
             self.socket = wrap_socket(
-                self.socket, hostname, ca_certs, verify_ssl)
+                self.socket, hostname, ca_certs, verify_ssl, context)
 
         self.alive = True
         if self.delay:
@@ -962,22 +966,40 @@ def get_required_args(func):
 # Wraps a plain socket into an SSL one. Attempts to load default CA
 # certificates if none are provided. Verifies the server's certificate and
 # hostname if specified.
-def wrap_socket(sock, hostname=None, ca_certs=None, verify_ssl=True):
-    context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
-    # Use load_default_certs() if available (Python >= 3.4); otherwise, use
-    # set_default_verify_paths() (doesn't work on Windows).
-    load_default_certs = getattr(
-        context, "load_default_certs", context.set_default_verify_paths)
+def wrap_socket(
+        sock, hostname=None, ca_certs=None, verify_ssl=True, context=None):
+    created = False
+    initialized = True
 
-    if verify_ssl:
-        context.verify_mode = ssl.CERT_REQUIRED
-    if ca_certs:
-        context.load_verify_locations(cafile=ca_certs)
-    else:
-        load_default_certs()
+    if context is None:
+        created = True
+        if hasattr(ssl, "create_default_context"):
+            context = ssl.create_default_context(cafile=ca_certs)
+        else:
+            context = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+            initialized = False
 
+    if created:
+        mode = ssl.CERT_REQUIRED if verify_ssl else ssl.CERT_NONE
+        context.verify_mode = mode
+        if hasattr(context, "check_hostname"):
+            context.check_hostname = bool(verify_ssl)
+
+    if not initialized:
+        # When no certs are provided, use load_default_certs() if available
+        # (Python >= 3.4); otherwise, use set_default_verify_paths() (doesn't
+        # work on Windows).
+        if ca_certs:
+            context.load_verify_locations(cafile=ca_certs)
+        elif hasattr(context, "load_default_certs"):
+            context.load_default_certs()
+        else:
+            context.set_default_verify_paths()
+
+    if hasattr(context, "check_hostname"):
+        return context.wrap_socket(sock, server_hostname=hostname)
     sock = context.wrap_socket(sock)
-    if verify_ssl:
+    if verify_ssl and not hasattr(context, "check_hostname"):
         ssl.match_hostname(sock.getpeercert(), hostname)
     return sock
 
