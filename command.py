@@ -7,6 +7,13 @@
 # published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
+# As an additional permission under GNU AGPL version 3 section 7, if a
+# modified version of this Program responds to the message "help" in an
+# IRC query with an opportunity to receive the Corresponding Source, it
+# satisfies the requirement to "prominently offer" such an opportunity.
+# All other requirements in the first paragraph of section 13 must still
+# be met.
+#
 # shellbot is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
