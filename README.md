@@ -69,6 +69,13 @@ Version 0.2.x:
 Dependencies
 ------------
 
-* Python 3.4 or higher
-* [docopt 0.6.6 or higher](https://pypi.python.org/pypi/docopt)
-* [Bash](https://www.gnu.org/software/bash/)
+* Python ≥ 3.4
+* Python package: [docopt]
+* [Bash]
+
+Run ``pip3 install -r requirements.txt`` to install the Python packages. You
+can also use ``requirements.freeze.txt`` instead to install specific versions
+of the dependencies that have been verified to work.
+
+[Bash]: https://www.gnu.org/software/bash/
+[docopt]: https://pypi.org/project/docopt
