@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (C) 2015-2016 taylor.fish <contact@taylor.fish>
+# Copyright (C) 2015 nc Krantz-Fire (https://pineco.net/)
 #
 # This file is part of shellbot.
 #
